@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <!-- Crucial for mobile responsiveness and controlling viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Car Runner</title>
+  <link rel="icon" type="image/x-icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQRvEoI9PL8Intq112jazebtvmfKiqJ3RciFg&s">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars on body */
+            background-color: #2c3e50; /* Background for areas outside game-wrapper if any */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #game-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            position: relative; /* For start/game-over screens */
+        }
+
+        #game-container {
+            width: 320px; /* Default width */
+            height: 550px; /* Default height */
+            background: linear-gradient(to bottom, #87CEEB 0%, #ADD8E6 60%, #90EE90 90%, #8FBC8F 100%);
+            position: relative; /* Changed from absolute to relative for easier centering within wrapper */
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3), 0 6px 6px rgba(0,0,0,0.25);
+            cursor: grab;
+            perspective: 800px;
+            transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Styles for when game-container should take up full screen (triggered by JS) */
+        #game-container.fullscreen-active {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            position: fixed; /* Take over screen */
+            top: 0;
+            left: 0;
+            z-index: 1000; /* Ensure it's on top */
+        }
+
+
+        .track-line {
+            position: absolute;
+            width: 4px; /* Consider scaling with vw/vh in fullscreen */
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.15);
+            top: 0;
+        }
+        /* These will need to be recalculated or set with % if container scales */
+        #track-line-1 { left: calc(33.33% - 2px); }
+        #track-line-2 { left: calc(66.66% - 2px); }
+
+        #player {
+        width: 70px;
+        height: 40px;
+        background: linear-gradient(to right, #e74c3c, #c0392b);
+        position: absolute;
+        bottom: 0;
+        transition: left 0.1s linear, bottom 0.2s ease, transform 0.3s ease;
+        z-index: 10;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transform-style: preserve-3d;
+    }
+        #player::before {
+        content: '';
+        position: absolute;
+        bottom: 6px;
+        left: 8px;
+        width: 10px;
+        height: 10px;
+        background: yellow;
+        border-radius: 50%;
+        box-shadow: 45px 0 yellow;
+    }
+
+#player::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background: linear-gradient(to bottom, rgba(231, 76, 60, 0.4), transparent);
+    transform: scaleY(-1);
+    opacity: 0.4;
+    z-index: -1;
+    border-radius: 8px;
+}
+
+#player {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+}
+
+
+        .obstacle, .coin, .powerup {
+            position: absolute; transform-style: preserve-3d;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.2); border-radius: 5px; z-index: 5;
+            /* These should also scale if game is truly fullscreen and elements need to maintain relative size */
+        }
+        .train { width: 80px; height: 120px; background: linear-gradient(to right, #c0c0c0, #a9a9a9, #c0c0c0); border: 2px solid #555; border-radius: 10px 10px 0 0; }
+        .train::before { content: ''; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 60%; height: 30px; background-color: #333; border-radius: 5px; border: 2px solid #444; }
+        .train::after { content: ''; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 15px; height: 15px; background-color: #FFD700; border-radius: 50%; box-shadow: 0 0 10px #FFD700; }
+        .barrier { width: 60px; height: 35px; background: repeating-linear-gradient( 45deg, #f1c40f, #f1c40f 10px, #2c3e50 10px, #2c3e50 20px ); border: 2px solid #2c3e50; }
+        .coin { width: 25px; height: 25px; background: radial-gradient(ellipse at center, #FFD700 0%, #FFA500 100%); border-radius: 50%; animation: spinCoin 1s linear infinite, bobCoin 1.5s ease-in-out infinite alternate; box-shadow: 0 0 10px #FFD700; }
+        @keyframes spinCoin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+        @keyframes bobCoin { from { transform: translateY(0px) rotateY(0deg); } to   { transform: translateY(-5px) rotateY(180deg); } }
+        .powerup { width: 35px; height: 35px; background: radial-gradient(circle, #ff00ff, #800080); border-radius: 8px; animation: pulsePowerUp 1.2s infinite ease-in-out; box-shadow: 0 0 15px #ff00ff, 0 0 25px #ff00ff inset; }
+        @keyframes pulsePowerUp { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+
+        #score-board {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            font-size: 22px; color: white; background-color: rgba(0,0,0,0.6);
+            padding: 8px 15px; border-radius: 20px; z-index: 1020; /* Higher z-index for fullscreen */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        #game-container.fullscreen-active #score-board {
+            top: 3vh; /* Use vh for better scaling */
+            font-size: 4vh; /* Use vh */
+            padding: 1.5vh 3vh;
+        }
+
+        /* Start and Game Over Screens are children of game-wrapper now */
+        #start-screen, #game-over-screen {
+            position: absolute; /* Positioned relative to game-wrapper */
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(44, 62, 80, 0.85); /* Use body background color with alpha */
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            color: white;
+            z-index: 1100; /* Highest z-index */
+            text-align: center; padding: 20px; box-sizing: border-box;
+        }
+        #start-screen h1, #game-over-screen h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.7); }
+        #start-screen p, #game-over-screen p { font-size: 1.1em; margin: 8px 0; }
+
+        #start-screen button, #game-over-screen button {
+            padding: 12px 25px; font-size: 1.2em; cursor: pointer;
+            margin-top: 25px;
+            border: none; border-radius: 25px;
+            background: linear-gradient(to bottom, #5cb85c, #4cae4c); color: white;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+        #start-screen button:hover, #game-over-screen button:hover {
+            background: linear-gradient(to bottom, #4cae4c, #449d44);
+            transform: translateY(-2px);
+        }
+        #start-screen button:active, #game-over-screen button:active { transform: translateY(0px); }
+    
+#pause-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: white;
+  color: black;
+  font-size: 24px;
+  border: none;
+  cursor: pointer;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  transition: background 0.2s;
+}
+#pause-btn:hover {
+  background-color: #f0f0f0;
+}
+
+</style>
+</head>
+<body>
+
+<audio id="bg-music" autoplay loop>
+  <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_1c00718053.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+    <!-- game-wrapper will handle the overall screen space -->
+    <div id="game-wrapper">
+  <button id="pause-btn">⏸</button>
+        <!-- game-container is the actual game area -->
+        <div id="game-container">
+  <button id="pause-btn">⏸</button>
+            <div id="track-line-1" class="track-line"></div>
+            <div id="track-line-2" class="track-line"></div>
+            <div id="player"></div>
+            <div id="score-board">Score: 0</div>
+        </div>
+
+        <!-- Start and Game Over screens are siblings of game-container, children of game-wrapper -->
+        <div id="start-screen">
+            <h1>Pixel Runner</h1>
+            <p>Swipe or use Arrow Keys</p>
+            <p>Up: Jump | Down: Roll</p>
+            <p>Left/Right: Change Lane</p>
+            <button id="start-button">Start Game</button>
+        </div>
+
+        <div id="game-over-screen" style="display: none;">
+  <button id="pause-btn">⏸</button>
+            <h1>Game Over!</h1>
+            <p id="final-score">Your Score: 0</p>
+            <button id="restart-button">Restart Game</button>
+        </div>
+    </div>
+
+    <script>
+        const gameWrapper = document.getElementById('game-wrapper');
+        const gameContainer = document.getElementById('game-container');
+        const player = document.getElementById('player');
+        const scoreBoard = document.getElementById('score-board');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        let LANE_WIDTH = gameContainer.offsetWidth / 3;
+        const PLAYER_BASE_Y_PERCENT = 0.05; // 5% from bottom of game container
+        const PLAYER_JUMP_HEIGHT_PERCENT = 0.20; // 20% of game container height
+
+        let playerBaseY = gameContainer.offsetHeight * PLAYER_BASE_Y_PERCENT;
+        let playerJumpHeight = gameContainer.offsetHeight * PLAYER_JUMP_HEIGHT_PERCENT;
+
+        const PLAYER_ROLL_DURATION = 400;
+        const PLAYER_NORMAL_HEIGHT_CSS = '65px'; // Can be % of gameContainer.offsetHeight if dynamic
+        const PLAYER_ROLL_HEIGHT_CSS = '35px';
+
+        let score = 0;
+
+const pauseBtn = document.getElementById("pause-btn");
+
+const bgMusic = document.getElementById("bg-music");
+
+pauseBtn.addEventListener("click", () => {
+  gamePaused = !gamePaused;
+  pauseBtn.textContent = gamePaused ? "▶" : "⏸";
+  if (gamePaused) {
+    bgMusic.pause();
+  } else {
+    bgMusic.play();
+  }
+});
+
+let gamePaused = false;
+
+pauseBtn.addEventListener("click", () => {
+  gamePaused = !gamePaused;
+  pauseBtn.textContent = gamePaused ? "▶" : "⏸";
+});
+ let currentLane = 1; let isJumping = false; let isRolling = false;
+        let gameSpeed = 5; let gameLoopInterval;
+        let obstacles = []; let collectibles = [];
+        let spawnTimer = 0; let gameRunning = false;
+        let isGameFullscreen = false; // Track if game is in "fullscreen" state
+
+        // Recalculate dynamic sizes based on gameContainer dimensions
+        function calculateDynamicSizes() {
+            LANE_WIDTH = gameContainer.offsetWidth / 3;
+            playerBaseY = gameContainer.offsetHeight * PLAYER_BASE_Y_PERCENT;
+            playerJumpHeight = gameContainer.offsetHeight * PLAYER_JUMP_HEIGHT_PERCENT;
+
+            // Adjust player width/height if they are percentage based
+            // Example: player.style.width = (gameContainer.offsetWidth * 0.1) + 'px';
+            
+            // Ensure track lines are positioned correctly if they are not % based
+            const track1 = document.getElementById('track-line-1');
+            const track2 = document.getElementById('track-line-2');
+            if (track1) track1.style.left = `calc(${100/3}% - ${track1.offsetWidth/2}px)`;
+            if (track2) track2.style.left = `calc(${200/3}% - ${track2.offsetWidth/2}px)`;
+
+
+            updatePlayerPosition(); // Re-position player after size changes
+        }
+        
+        function enterGameFullscreen() {
+            gameContainer.classList.add('fullscreen-active');
+            isGameFullscreen = true;
+            // Attempt to use browser's native fullscreen if available and desired
+            // This is often best for mobile to hide system UI
+            const elemToFullscreen = document.documentElement; // Full page
+            if (elemToFullscreen.requestFullscreen) elemToFullscreen.requestFullscreen().catch(err => console.log(err));
+            else if (elemToFullscreen.mozRequestFullScreen) elemToFullscreen.mozRequestFullScreen().catch(err => console.log(err));
+            else if (elemToFullscreen.webkitRequestFullscreen) elemToFullscreen.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT).catch(err => console.log(err));
+            else if (elemToFullscreen.msRequestFullscreen) elemToFullscreen.msRequestFullscreen().catch(err => console.log(err));
+            
+            // Recalculate sizes after short delay to allow CSS transitions/fullscreen to apply
+            setTimeout(calculateDynamicSizes, 350);
+        }
+
+        function exitGameFullscreen() {
+            gameContainer.classList.remove('fullscreen-active');
+            isGameFullscreen = false;
+            if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                else if (document.msExitFullscreen) document.msExitFullscreen();
+            }
+            setTimeout(calculateDynamicSizes, 350); // Recalculate for normal view
+        }
+
+
+        function updatePlayerPosition() {
+            player.style.left = (currentLane * LANE_WIDTH + (LANE_WIDTH - player.offsetWidth) / 2) + 'px';
+            if (!isJumping) player.style.bottom = playerBaseY + 'px';
+
+            if (isRolling) {
+                player.style.height = PLAYER_ROLL_HEIGHT_CSS;
+                player.style.background = 'linear-gradient(to bottom, #1a5276, #154360)'; 
+                player.style.transform = 'scaleY(0.8) translateY(10%)'; 
+            } else {
+                player.style.height = PLAYER_NORMAL_HEIGHT_CSS;
+                player.style.background = 'linear-gradient(to bottom, #3498db, #2980b9)'; 
+                player.style.transform = 'scaleY(1) translateY(0%)';
+            }
+        }
+
+        function moveLeft() { if (currentLane > 0 && gameRunning && !isJumping && !isRolling) { currentLane--; updatePlayerPosition(); } }
+        function moveRight() { if (currentLane < 2 && gameRunning && !isJumping && !isRolling) { currentLane++; updatePlayerPosition(); } }
+        
+        function jump() {
+            if (!isJumping && !isRolling && gameRunning) {
+                isJumping = true;
+                const jumpUpTime = 250, fallTime = 250;
+                player.style.transition = `bottom ${jumpUpTime/1000}s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.1s linear, height 0.2s linear, transform 0.2s linear`;
+                player.style.bottom = (playerBaseY + playerJumpHeight) + 'px';
+                player.style.transform = 'scaleY(1.1) rotateX(-10deg)';
+                setTimeout(() => {
+                    player.style.transition = `bottom ${fallTime/1000}s cubic-bezier(0.55, 0.085, 0.68, 0.53), left 0.1s linear, height 0.2s linear, transform 0.2s linear`;
+                    player.style.bottom = playerBaseY + 'px';
+                    player.style.transform = 'scaleY(1) rotateX(0deg)';
+                    setTimeout(() => { 
+                        isJumping = false;
+                        player.style.transition = 'left 0.1s linear, bottom 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), height 0.2s linear, transform 0.2s linear'; 
+                        updatePlayerPosition(); 
+                    }, fallTime); 
+                }, jumpUpTime);
+            }
+        }
+        function roll() {
+            if (!isJumping && !isRolling && gameRunning) {
+                isRolling = true; updatePlayerPosition(); 
+                setTimeout(() => { isRolling = false; updatePlayerPosition(); }, PLAYER_ROLL_DURATION);
+            }
+        }
+        
+        function createItemElement(classNameString, itemCategory) { 
+            const el = document.createElement('div'); el.classList.add(classNameString); 
+            if (itemCategory === 'obstacle') el.classList.add('obstacle'); return el;
+        }
+        function spawnObstacle() {
+            const typeChance = Math.random(); let itemElement, itemType, category;
+            if (typeChance < 0.4) { itemType = 'train'; category = 'obstacle'; }
+            else if (typeChance < 0.75) { itemType = 'barrier'; category = 'obstacle'; }
+            else if (typeChance < 0.95) { itemType = 'coin'; category = 'collectible'; }
+            else { itemType = 'powerup'; category = 'collectible'; }
+            itemElement = createItemElement(itemType, category); gameContainer.appendChild(itemElement);
+            const itemWidth = itemElement.offsetWidth, itemHeight = itemElement.offsetHeight;
+            const itemLane = Math.floor(Math.random() * 3);
+            itemElement.style.left = (itemLane * LANE_WIDTH + (LANE_WIDTH - itemWidth) / 2) + 'px';
+            itemElement.style.top = -itemHeight + 'px'; 
+            if (category === 'collectible') collectibles.push({ element: itemElement, lane: itemLane, type: itemType });
+            else obstacles.push({ element: itemElement, lane: itemLane, type: itemType });
+        }
+        function updateGameArea() {
+  if (gamePaused || !gameRunning) return;
+            if (!gameRunning) return; spawnTimer++;
+            if (spawnTimer > Math.max(25, 90 - score / 12 - gameSpeed * 2.5)) { 
+                spawnObstacle(); spawnTimer = 0; if (Math.random() < 0.35 + score/400) spawnObstacle(); 
+            }
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i]; let obsTop = parseFloat(obs.element.style.top || 0) + gameSpeed;
+                obs.element.style.top = obsTop + 'px';
+                if (obsTop > gameContainer.offsetHeight) { obs.element.remove(); obstacles.splice(i, 1); } else checkCollision(obs);
+            }
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                const col = collectibles[i]; let colTop = parseFloat(col.element.style.top || 0) + gameSpeed;
+                col.element.style.top = colTop + 'px';
+                if (colTop > gameContainer.offsetHeight) { col.element.remove(); collectibles.splice(i, 1); } else checkCollectibleCollision(col, i);
+            }
+            scoreBoard.textContent = 'Score: ' + score; gameSpeed = 5 + Math.floor(score / 40);
+        }
+        function getBoundingRect(element) {
+            const rect = element.getBoundingClientRect(); const gameRect = gameContainer.getBoundingClientRect();
+            return { left: rect.left - gameRect.left, right: rect.right - gameRect.left, top: rect.top - gameRect.top, bottom: rect.bottom - gameRect.top, width: rect.width, height: rect.height };
+        }
+        function checkCollision(obstacle) {
+            const playerRect = getBoundingRect(player); const obsRect = getBoundingRect(obstacle.element);
+            const collisionMargin = 5;
+            if (playerRect.left < obsRect.right - collisionMargin && playerRect.right > obsRect.left + collisionMargin &&
+                playerRect.top < obsRect.bottom - collisionMargin && playerRect.bottom > obsRect.top + collisionMargin) {
+                if (obstacle.type === 'barrier') {
+                    const playerEffBottom = playerRect.bottom - (isJumping ? playerRect.height*0.2 : 0);
+                    if (isJumping && playerEffBottom < obsRect.top + obsRect.height / 2) return;
+                }
+                gameOver();
+            }
+        }
+        function checkCollectibleCollision(collectible, index) {
+            const playerRect = getBoundingRect(player); const colRect = getBoundingRect(collectible.element);
+            if (playerRect.left < colRect.right && playerRect.right > colRect.left &&
+                playerRect.top < colRect.bottom && playerRect.bottom > colRect.top) {
+                if (collectible.type === 'coin') score += 10; else if (collectible.type === 'powerup') score += 50; 
+                collectible.element.remove(); collectibles.splice(index, 1);
+                scoreBoard.textContent = 'Score: ' + score;
+            }
+        }
+
+        function gameOver() {
+            gameRunning = false; clearInterval(gameLoopInterval);
+            exitGameFullscreen(); // Exit our custom fullscreen mode
+            gameOverScreen.style.display = 'flex';
+            startScreen.style.display = 'none'; // Ensure start screen is hidden
+            finalScoreDisplay.textContent = 'Your Score: ' + score;
+        }
+
+        function resetGame() {
+            score = 0; currentLane = 1; isJumping = false; isRolling = false;
+            gameSpeed = 5; spawnTimer = 0;
+            obstacles.forEach(obs => obs.element.remove()); collectibles.forEach(col => col.element.remove());
+            obstacles = []; collectibles = [];
+            
+            // Crucially, recalculate sizes for current view (fullscreen or normal)
+            // The timeout in enter/exitGameFullscreen should handle this, but an explicit call here is good
+            calculateDynamicSizes(); 
+            
+            player.style.transition = 'left 0.1s linear, bottom 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), height 0.2s linear, transform 0.2s linear';
+            updatePlayerPosition();
+            scoreBoard.textContent = 'Score: 0';
+            gameOverScreen.style.display = 'none';
+            // Start screen should already be hidden by startGame or handled if coming from game over
+        }
+
+        function startGame() {
+            startScreen.style.display = 'none'; // Hide start screen first
+            gameOverScreen.style.display = 'none';
+            enterGameFullscreen(); // Enter fullscreen when game starts
+            // resetGame() will be called by enterGameFullscreen's timeout or directly
+            // We need a slight delay for fullscreen transition before resetGame & starting loop
+            setTimeout(() => {
+                resetGame(); // This will also call calculateDynamicSizes
+                gameRunning = true;
+                gameLoopInterval = setInterval(updateGameArea, 1000 / 60); 
+                // updatePlayerPosition() is called by resetGame
+            }, 100); // Small delay for visual transition
+        }
+
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame); // Restart will also try to go fullscreen
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) {
+                if ((e.key === "Enter" || e.key === " ") && 
+                    (startScreen.style.display !== 'none' || gameOverScreen.style.display !== 'none')) {
+                    startGame();
+                }
+                return; 
+            }
+            // Fullscreen toggle via key removed as per request
+            // if (e.key === 'f' || e.key === 'F') toggleFullScreen();
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') moveLeft();
+            else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') moveRight();
+            else if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w' || e.key === ' ') { e.preventDefault(); jump(); }
+            else if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') { e.preventDefault(); roll(); }
+        });
+
+        let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+        const swipeThreshold = 30; 
+        gameContainer.addEventListener('touchstart', (e) => {
+            if (!gameRunning) return; // Only handle touch if game is running
+            touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY;
+            e.preventDefault();
+        }, { passive: false });
+        gameContainer.addEventListener('touchend', (e) => {
+            if (!gameRunning) return;
+            touchEndX = e.changedTouches[0].screenX; touchEndY = e.changedTouches[0].screenY;
+            handleSwipe(); e.preventDefault();
+        }, { passive: false });
+        gameContainer.addEventListener('touchmove', e => { if(gameRunning) e.preventDefault(); }, { passive: false });
+        function handleSwipe() { /* ... unchanged ... */ 
+            const deltaX = touchEndX - touchStartX; const deltaY = touchEndY - touchStartY;
+            if (Math.abs(deltaX) > Math.abs(deltaY)) { 
+                if (Math.abs(deltaX) > swipeThreshold) (deltaX > 0 ? moveRight() : moveLeft());
+            } else { 
+                if (Math.abs(deltaY) > swipeThreshold) (deltaY > 0 ? roll() : jump());
+            }
+        }
+        
+        // Listen for native fullscreen changes to update our state and recalculate sizes
+        function handleActualFullscreenChange() {
+            const isActuallyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+            if (isGameFullscreen && !isActuallyFullscreen) {
+                // Native fullscreen was exited (e.g., by Esc key), so exit our custom mode too if game is running
+                if (gameRunning) {
+                    // This might be too abrupt, consider just resizing or showing a "resume" button
+                    // For now, let's assume we want to exit our "fullscreen-active" class too.
+                     gameContainer.classList.remove('fullscreen-active');
+                     isGameFullscreen = false; // Update our state
+                }
+            }
+            calculateDynamicSizes();
+        }
+        document.addEventListener('fullscreenchange', handleActualFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleActualFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleActualFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleActualFullscreenChange);
+        window.addEventListener('resize', calculateDynamicSizes);
+
+
+        // Initial setup
+        calculateDynamicSizes(); // Calculate initial sizes based on default gameContainer
+        updatePlayerPosition();
+        startScreen.style.display = 'flex'; // Show start screen initially
+        console.log("Game ready. Press Start Game to play in immersive mode.");
+    </script>
+</body>
+</html>
