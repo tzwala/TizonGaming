@@ -1,0 +1,542 @@
+<script type='text/javascript' src='//pl26992392.profitableratecpm.com/61/c2/cc/61c2ccf49791e87d9dbc8e4436929dcb.js'></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bike World Sim - Pond Edition</title>
+    <style>
+        /* ... (Keep all previous CSS rules: body, #ui-container, .ui-box, #controls, .control-area, button, #loading-screen, #game-over, .cloud, @keyframes) ... */
+        body { margin: 0; overflow: hidden; background-color: #6ca0dc; font-family: sans-serif;}
+        canvas { display: block; }
+        #ui-container { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; color: white; font-size: 1.6em; font-weight: bold; text-shadow: 1px 1px 3px rgba(0,0,0,0.7); pointer-events: none; z-index: 5; }
+        .ui-box { background-color: rgba(0,0,0,0.3); padding: 5px 12px; border-radius: 8px; margin-bottom: 5px;}
+        #left-ui { display: flex; flex-direction: column; } #right-ui { display: flex; flex-direction: column; align-items: flex-end;}
+        #controls { position: absolute; bottom: 15px; width: 100%; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 15px; box-sizing: border-box; pointer-events: none; z-index: 5; }
+        .control-area { display: flex; flex-direction: column; align-items: center; pointer-events: auto; } #controls-left { align-items: center; display: flex; flex-direction: row; } #controls-right { align-items: center; }
+        .control-area button { background-color: rgba(128, 128, 128, 0.6); border: 2px solid rgba(255, 255, 255, 0.8); color: white; font-size: 20px; width: 55px; height: 55px; border-radius: 50%; margin: 5px; display: flex; justify-content: center; align-items: center; user-select: none; -webkit-user-select: none; touch-action: manipulation; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: background-color 0.1s ease; } .control-area button:active { background-color: rgba(100, 100, 100, 0.8); } #controls-right button { width: 70px; border-radius: 35px; }
+        #loading-screen, #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 10; } #loading-screen { background-color: rgba(0, 0, 0, 0.75); color: white; font-size: 2em; } #game-over { background-color: rgba(0, 0, 0, 0.8); color: yellow; flex-direction: column; font-size: 3em; text-align: center; display: none; } #game-over span { font-size: 0.6em; margin-top: 20px; }
+        .cloud { position: absolute; font-size: 50px; color: white; opacity: 0.7; pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); animation: moveCloud 60s linear infinite alternate; z-index: 1; } @keyframes moveCloud { from { transform: translateX(-100px); } to { transform: translateX(100px); } }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">Loading...</div>
+    <!-- UI -->
+    <div id="ui-container"> <div id="left-ui"> <div id="score" class="ui-box">Score: 0</div> <div id="speedometer" class="ui-box">Speed: 0 KPH</div> </div> <div id="right-ui"> <div id="timer" class="ui-box">Time: 2:00</div> </div> </div>
+    <!-- Game Over -->
+    <div id="game-over"> TIME'S UP! <span id="final-score">Final Score: 0</span> </div>
+    <!-- Clouds -->
+    <div id="cloud-container"></div>
+    <!-- Controls -->
+    <div id="controls" style="display: none;"> <div id="controls-left" class="control-area"> <button id="left">◀</button> <button id="right">▶</button> </div> <div id="controls-right" class="control-area"> <button id="forward">▲</button> <button id="backward">▼</button> </div> </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three/examples/jsm/", "simplex-noise": "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        // We don't need simplex for this version as we place bumps manually
+        // import { createNoise2D } from 'simplex-noise';
+
+        // --- Core Variables ---
+        let scene, camera, renderer, clock, terrain, startLine, pondWater; // Added pondWater
+        let bikeContainer, bikeModel;
+        let moveForward = false, moveBackward = false, turnLeft = false, turnRight = false;
+
+        // --- Bike Physics & Speed ---
+        const acceleration = 8.0; const maxSpeed = 25.0; const brakeForce = 15.0; const coastDeceleration = 2.0;
+        const waterDragFactor = 0.15; // Speed multiplier in water (lower = more drag)
+        const waterMaxSpeed = maxSpeed * 0.3; // Max speed in water
+        let currentSpeed = 0.0; const turnSpeed = 1.9; let bikeVerticalVelocity = 0;
+        const gravity = 18.0; const jumpForce = 9.0; const rampMinSpeed = 5.0;
+        const smallJumpForce = 4.0; const bikeRadius = 1.1;
+
+        // --- Game State & Objects ---
+        let score = 0; let timeLeft = 120; let gameActive = true;
+        let coins = []; let roadObstacles = []; let roadLines; const coinRadius = 0.5;
+        let pineTrunkInstances, pineLeavesInstances, broadleafTrunkInstances, broadleafLeavesInstances;
+        let simpleBuildingInstances;
+        let rockInstances; // For rocks
+        let fishInstances; // For fish
+        let collisionObjects = []; // Holds trees, buildings, rocks
+
+        // --- Pond Definition ---
+        const pondCenter = new THREE.Vector2(-40, -30); // X, Z coordinates of pond center
+        const pondRadius = 25; // Radius of the pond
+        const pondDepth = 3.0; // How deep the pond bottom is relative to surrounding terrain
+        const waterSurfaceLevelOffset = -0.2; // How far water surface is below surrounding terrain level
+
+        // --- Road, Loading ---
+        let roadCurvePathPoints = []; const loadingManager = new THREE.LoadingManager();
+        const gltfLoader = new GLTFLoader(loadingManager);
+        // const noise2D = createNoise2D(); // No longer needed for terrain
+
+        // --- Orbit Camera ---
+        let isOrbiting = false, isTouchingButton = false, orbitPointerDown = false;
+        let lastPointerX = 0, lastPointerY = 0; const orbitSensitivity = 0.01; let cameraOrbitOffset = new THREE.Vector3();
+
+        // --- UI Elements ---
+        const scoreElement = document.getElementById('score'); const timerElement = document.getElementById('timer');
+        const speedElement = document.getElementById('speedometer'); const loadingScreen = document.getElementById('loading-screen');
+        const gameOverScreen = document.getElementById('game-over'); const finalScoreElement = document.getElementById('final-score');
+        const cloudContainer = document.getElementById('cloud-container');
+
+        // --- Raycasting ---
+        const raycasterFront = new THREE.Raycaster(); const raycasterLeft = new THREE.Raycaster(); const raycasterRight = new THREE.Raycaster();
+        const rayDistance = 1.5; const rayVerticalOffset = 0.5;
+
+
+        // --- Loading Manager Callbacks ---
+        loadingManager.onProgress = (url, loaded, total) => { loadingScreen.innerText = `Loading: ${Math.round(loaded / total * 100)}%`; };
+        loadingManager.onLoad = () => { console.log('Loading complete!'); loadingScreen.style.display = 'none'; document.getElementById('controls').style.display = 'flex'; setupOrbitControls(); gameActive = true; animate(); };
+        loadingManager.onError = (url) => { console.error('Error loading ' + url); loadingScreen.innerText = 'Error loading.'; document.getElementById('controls').style.display = 'flex'; };
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene(); scene.background = new THREE.Color(0x6ca0dc); scene.fog = new THREE.Fog(0x6ca0dc, 200, 400); // Adjust fog slightly
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.set(0, 10, -15);
+            renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(window.devicePixelRatio); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0; document.body.appendChild(renderer.domElement);
+            clock = new THREE.Clock();
+            scene.add(new THREE.AmbientLight(0xffffff, 0.65)); // Slightly more ambient
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.7); // Slightly less intense sun
+            dirLight.position.set(100, 80, 70); dirLight.castShadow = true; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; dirLight.shadow.camera.near = 1; dirLight.shadow.camera.far = 300; dirLight.shadow.camera.left = -150; dirLight.shadow.camera.right = 150; dirLight.shadow.camera.top = 150; dirLight.shadow.camera.bottom = -150; dirLight.shadow.bias = -0.0005; scene.add(dirLight);
+
+            createFlatTerrainWithPond(); // Create terrain first
+            const roadControlPoints = createRoadPath(); const startPos = roadControlPoints[0];
+            createStartLine(startPos, roadControlPoints[1]); createRoadLines(); createTrees(); createSimpleBuildings(10); // Fewer buildings
+            createRocks(50); // Add rocks
+            createCoins(60); createJumpObstacles(10);
+            createFish(30); // Add fish in the pond
+
+            loadBikeModel(startPos, roadControlPoints[1]);
+            setupMovementControls(); createClouds(10);
+            window.addEventListener('resize', onWindowResize, false); updateUI();
+        }
+
+        // --- Flattened Terrain with Pond and Bumps ---
+        function createFlatTerrainWithPond() {
+            const terrainSize = 200; const segments = 100;
+            const geometry = new THREE.PlaneGeometry(terrainSize, terrainSize, segments, segments);
+            geometry.rotateX(-Math.PI / 2);
+
+            const positionAttribute = geometry.attributes.position;
+            const colors = []; const vertex = new THREE.Vector3();
+            const tempColor = new THREE.Color();
+
+            const baseColor = new THREE.Color(0x3ba04a); // Base green color
+            const pondBottomColor = new THREE.Color(0x6b8e23); // Olive Drab pond bottom
+            const bumpColor = new THREE.Color(0x5c854f); // Darker green for bumps
+
+            // Define Bumps (center position, radius, height)
+            const bumps = [
+                { center: new THREE.Vector2(50, 20), radius: 15, height: 2.5 },
+                { center: new THREE.Vector2(-60, 50), radius: 18, height: 3.0 },
+                { center: new THREE.Vector2(30, -70), radius: 12, height: 2.0 },
+                { center: new THREE.Vector2(-20, 80), radius: 20, height: 2.8 },
+                { center: new THREE.Vector2(70, -40), radius: 16, height: 2.2 },
+            ];
+
+            let avgPondNeighborHeight = 0; // To calculate average height around pond for water level
+            let pondNeighborCount = 0;
+
+            // First pass: Calculate heights and neighbors for pond level
+            for (let i = 0; i < positionAttribute.count; i++) {
+                 vertex.fromBufferAttribute(positionAttribute, i);
+                 const distToPondCenterSq = vertex.x * vertex.x + vertex.z * vertex.z - 2 * vertex.x * pondCenter.x - 2 * vertex.z * pondCenter.y + pondCenter.x * pondCenter.x + pondCenter.y * pondCenter.y; // Faster check
+                 const isInPond = distToPondCenterSq < pondRadius * pondRadius;
+                 const isOnPondEdge = !isInPond && distToPondCenterSq < (pondRadius + 5) * (pondRadius + 5); // Check near edge
+
+                 vertex.y = 0; // Start flat
+
+                 // Add Bump Height
+                 for (const bump of bumps) {
+                     const dx = vertex.x - bump.center.x;
+                     const dz = vertex.z - bump.center.y;
+                     const distSq = dx * dx + dz * dz;
+                     if (distSq < bump.radius * bump.radius) {
+                         // Smooth bump using cosine falloff
+                         const factor = (1 + Math.cos(Math.sqrt(distSq) / bump.radius * Math.PI)) / 2;
+                         vertex.y += bump.height * factor;
+                     }
+                 }
+
+                 if (isInPond) {
+                     vertex.y -= pondDepth; // Depress pond bottom
+                 } else if (isOnPondEdge) {
+                     avgPondNeighborHeight += vertex.y; // Add height of neighbors
+                     pondNeighborCount++;
+                 }
+
+                 positionAttribute.setY(i, vertex.y); // Set calculated height
+            }
+
+             // Calculate average ground height around pond
+             avgPondNeighborHeight = (pondNeighborCount > 0) ? avgPondNeighborHeight / pondNeighborCount : 0;
+             const waterSurfaceLevel = avgPondNeighborHeight + waterSurfaceLevelOffset;
+
+            // Second pass: Set colors
+             for (let i = 0; i < positionAttribute.count; i++) {
+                  vertex.fromBufferAttribute(positionAttribute, i);
+                  const distToPondCenterSq = vertex.x * vertex.x + vertex.z * vertex.z - 2 * vertex.x * pondCenter.x - 2 * vertex.z * pondCenter.y + pondCenter.x * pondCenter.x + pondCenter.y * pondCenter.y;
+                  const isInPond = distToPondCenterSq < pondRadius * pondRadius;
+
+                  tempColor.copy(baseColor); // Start with base color
+
+                  // Check if on a bump
+                  let onBumpFactor = 0;
+                  for (const bump of bumps) {
+                     const dx = vertex.x - bump.center.x; const dz = vertex.z - bump.center.y;
+                     const distSq = dx*dx + dz*dz;
+                     if(distSq < bump.radius * bump.radius) {
+                         onBumpFactor = Math.max(onBumpFactor, (1 + Math.cos(Math.sqrt(distSq) / bump.radius * Math.PI)) / 2);
+                     }
+                  }
+                   tempColor.lerp(bumpColor, onBumpFactor * 0.7); // Blend bump color
+
+                  if (isInPond) {
+                      tempColor.copy(pondBottomColor); // Pond bottom color
+                  }
+
+                  colors.push(tempColor.r, tempColor.g, tempColor.b);
+             }
+
+
+            geometry.computeVertexNormals();
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            const terrainMaterial = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02, vertexColors: true });
+            terrain = new THREE.Mesh(geometry, terrainMaterial); terrain.receiveShadow = true; scene.add(terrain);
+
+            // Add Pond Water Surface
+            const waterGeometry = new THREE.CircleGeometry(pondRadius, 64);
+            const waterMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3388cc, // Water blue
+                metalness: 0.1,
+                roughness: 0.2,
+                transparent: true,
+                opacity: 0.75,
+                // envMap: scene.background, // Simple reflection (optional)
+            });
+            pondWater = new THREE.Mesh(waterGeometry, waterMaterial);
+            pondWater.rotation.x = -Math.PI / 2; // Make horizontal
+            pondWater.position.set(pondCenter.x, waterSurfaceLevel, pondCenter.y);
+            pondWater.receiveShadow = true; // Can receive shadows on surface
+            scene.add(pondWater);
+
+             console.log("Pond water level calculated:", waterSurfaceLevel);
+        }
+
+        // --- Road Creation ---
+        function createRoadPath() { /* ... (same with straights) ... */ const controlPoints = []; const startZ = 90; controlPoints.push(new THREE.Vector3(0, 0, startZ)); let currentX = 0; let currentZ = startZ; const minSegmentLength = 15; const maxSegmentLength = 40; const minTurnAmount = 10; const maxTurnAmount = 35; const straightProbability = 0.3; let segmentsCount = 12; for (let i = 0; i < segmentsCount; i++) { let segmentLength = THREE.MathUtils.randFloat(minSegmentLength, maxSegmentLength); let turnAmount = THREE.MathUtils.randFloat(minTurnAmount, maxTurnAmount); let direction = (Math.random() < 0.5) ? 1 : -1; if(i > 0) { const prevDir = Math.sign(controlPoints[i].x - controlPoints[i-1].x); if(prevDir !== 0) direction = prevDir; } if (Math.random() < straightProbability && i > 0) { const lastP = controlPoints[controlPoints.length - 1]; const secondLastP = controlPoints[controlPoints.length - 2]; const dirVector = new THREE.Vector3().subVectors(lastP, secondLastP).normalize(); if (dirVector.z < 0.1) { dirVector.z = -Math.abs(dirVector.z) -0.1; dirVector.normalize(); } currentX = lastP.x + dirVector.x * segmentLength; currentZ = lastP.z + dirVector.z * segmentLength; } else { currentX += direction * turnAmount; currentZ -= segmentLength; } currentX = Math.max(-85, Math.min(85, currentX)); currentZ = Math.min(currentZ, controlPoints[controlPoints.length - 1].z - minSegmentLength * 0.5); controlPoints.push(new THREE.Vector3(currentX, 0, currentZ)); } const roadCurve = new THREE.CatmullRomCurve3(controlPoints, false, 'catmullrom', 0.3); const numCurveSamples = 300; roadCurvePathPoints = roadCurve.getPoints(numCurveSamples); const roadWidth = 6; const roadColor = new THREE.Color(0x383838); const terrainGeometry = terrain.geometry; const positionAttribute = terrainGeometry.attributes.position; const vertexColors = terrainGeometry.attributes.color.array; const tempVertex = new THREE.Vector3(); const baseTerrainColor = new THREE.Color(); for (let i = 0; i < positionAttribute.count; i++) { tempVertex.fromBufferAttribute(positionAttribute, i); baseTerrainColor.setRGB(vertexColors[i*3], vertexColors[i*3+1], vertexColors[i*3+2]); let minDistanceSq = Infinity; for (const curvePt of roadCurvePathPoints) { const dx = tempVertex.x - curvePt.x; const dz = tempVertex.z - curvePt.z; const distSq = dx * dx + dz * dz; if (distSq < minDistanceSq) { minDistanceSq = distSq; } } const distanceToRoadCenter = Math.sqrt(minDistanceSq); if (distanceToRoadCenter < roadWidth / 2) { vertexColors[i*3] = roadColor.r; vertexColors[i*3+1] = roadColor.g; vertexColors[i*3+2] = roadColor.b; } else if (distanceToRoadCenter < roadWidth / 2 + 1.0) { const lerpFactor = THREE.MathUtils.smoothstep(distanceToRoadCenter, roadWidth / 2, roadWidth / 2 + 1.0); const mixedColor = baseTerrainColor.clone().lerp(roadColor, lerpFactor); vertexColors[i*3] = mixedColor.r; vertexColors[i*3+1] = mixedColor.g; vertexColors[i*3+2] = mixedColor.b; } } terrainGeometry.attributes.color.needsUpdate = true; return controlPoints; }
+
+        // --- Create Road Lines ---
+        function createRoadLines() { /* ... (same) ... */ if(roadCurvePathPoints.length<2)return;const lMC=new THREE.LineBasicMaterial({color:0xffffff,linewidth:2});const lME=new THREE.LineBasicMaterial({color:0xffffff,linewidth:1});const cP=[];const ePL=[];const ePR=[];const rW=6;const vO=0.1;for(let i=0;i<roadCurvePathPoints.length;i++){const p=roadCurvePathPoints[i];const t=new THREE.Vector3();if(i<roadCurvePathPoints.length-1){t.subVectors(roadCurvePathPoints[i+1],p);}else{t.subVectors(p,roadCurvePathPoints[i-1]);}t.normalize();const n=new THREE.Vector3(-t.z,0,t.x);const tY=getTerrainHeightAt(p.x,p.z);if(i%10<5){cP.push(p.x,tY+vO,p.z);}const eO=rW/2-0.2;ePL.push(p.x-n.x*eO,tY+vO,p.z-n.z*eO);ePR.push(p.x+n.x*eO,tY+vO,p.z+n.z*eO);}const cG=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(cP,3));const eLG=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(ePL,3));const eRG=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(ePR,3));const cL=new THREE.LineSegments(cG,lMC);const eLL=new THREE.Line(eLG,lME);const eLR=new THREE.Line(eRG,lME);roadLines=new THREE.Group();roadLines.add(cL);roadLines.add(eLL);roadLines.add(eLR);scene.add(roadLines); }
+
+        // --- Starting Line ---
+        function createStartLine(startPos, nextPos) { /* ... (same) ... */ const lL=7;const g=new THREE.PlaneGeometry(lL,1);const m=new THREE.MeshStandardMaterial({color:0xffffff,map:createCheckeredTexture(),side:THREE.DoubleSide,metalness:0.1,roughness:0.8});startLine=new THREE.Mesh(g,m);startLine.receiveShadow=true;const tY=getTerrainHeightAt(startPos.x,startPos.z);startLine.position.set(startPos.x,tY+0.05,startPos.z);const d=new THREE.Vector3().subVectors(nextPos,startPos).normalize();const a=Math.atan2(d.x,d.z);startLine.rotation.y=a;startLine.rotation.x=-Math.PI/2;scene.add(startLine); }
+        function createCheckeredTexture() { /* ... (same) ... */ const c=document.createElement('canvas');const ctx=c.getContext('2d');c.width=64;c.height=32;const cs=16;ctx.fillStyle='#ffffff';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#000000';for(let y=0;y<c.height;y+=cs){for(let x=0;x<c.width;x+=cs){if(((x/cs)%2===0)^((y/cs)%2===0)){ctx.fillRect(x,y,cs,cs);}}}const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.RepeatWrapping;t.repeat.set(4,1);return t; }
+
+        // --- Tree Creation (Variety) ---
+        function createTrees() { /* ... (same variety logic) ... */ if (roadCurvePathPoints.length === 0) return; const totalTreeCount = 200; const terrainSize = 200; const roadWidth = 6; const minTreeDist = roadWidth / 2 + 4.5; const dummy = new THREE.Object3D(); const pineTrunkGeo = new THREE.CylinderGeometry(0.3, 0.4, 2.5, 8); const pineTrunkMat = new THREE.MeshStandardMaterial({ color: 0x654321 }); const pineLeavesGeo = new THREE.ConeGeometry(1.6, 5.0, 10); const pineLeavesMat = new THREE.MeshStandardMaterial({ color: 0x228B22 }); const broadleafTrunkGeo = new THREE.CylinderGeometry(0.4, 0.5, 2.0, 10); const broadleafTrunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); const broadleafLeavesGeo = new THREE.SphereGeometry(2.0, 12, 8); const broadleafLeavesMat = new THREE.MeshStandardMaterial({ color: 0x556B2F }); const pineCount = Math.floor(totalTreeCount * 0.6); const broadleafCount = totalTreeCount - pineCount; pineTrunkInstances = new THREE.InstancedMesh(pineTrunkGeo, pineTrunkMat, pineCount); pineLeavesInstances = new THREE.InstancedMesh(pineLeavesGeo, pineLeavesMat, pineCount); broadleafTrunkInstances = new THREE.InstancedMesh(broadleafTrunkGeo, broadleafTrunkMat, broadleafCount); broadleafLeavesInstances = new THREE.InstancedMesh(broadleafLeavesGeo, broadleafLeavesMat, broadleafCount); const allInstances = [pineTrunkInstances, pineLeavesInstances, broadleafTrunkInstances, broadleafLeavesInstances]; allInstances.forEach(inst => { inst.castShadow = true; inst.receiveShadow = true; }); let placedPines = 0; let placedBroadleaf = 0; for (let i = 0; i < totalTreeCount * 1.5; i++) { if (placedPines >= pineCount && placedBroadleaf >= broadleafCount) break; let x, z, distanceToRoadCenter; let attempts = 0; const maxAttempts = 25; do { x = Math.random() * terrainSize - terrainSize / 2; z = Math.random() * terrainSize - terrainSize / 2; const distToPondCenterSq = x*x+z*z - 2*x*pondCenter.x - 2*z*pondCenter.y + pondCenter.x*pondCenter.x + pondCenter.y*pondCenter.y; if(distToPondCenterSq < (pondRadius+2)*(pondRadius+2)) { attempts++; continue; } /* Avoid pond */ let minDistanceSq = Infinity; for (const curvePt of roadCurvePathPoints) { const dx=x-curvePt.x; const dz=z-curvePt.z; const distSq=dx*dx+dz*dz; if (distSq<minDistanceSq) minDistanceSq=distSq; } distanceToRoadCenter = Math.sqrt(minDistanceSq); attempts++; } while ((distanceToRoadCenter < minTreeDist) && attempts < maxAttempts); if (distanceToRoadCenter >= minTreeDist) { const y = getTerrainHeightAt(x, z); dummy.rotation.y = Math.random() * Math.PI * 2; const isPine = Math.random() < 0.6; if (isPine && placedPines < pineCount) { dummy.position.set(x, y + 1.25, z); dummy.updateMatrix(); pineTrunkInstances.setMatrixAt(placedPines, dummy.matrix); dummy.position.set(x, y + 3.75, z); dummy.updateMatrix(); pineLeavesInstances.setMatrixAt(placedPines, dummy.matrix); placedPines++; } else if (!isPine && placedBroadleaf < broadleafCount) { dummy.position.set(x, y + 1.0, z); dummy.updateMatrix(); broadleafTrunkInstances.setMatrixAt(placedBroadleaf, dummy.matrix); dummy.position.set(x, y + 3.0, z); dummy.updateMatrix(); broadleafLeavesInstances.setMatrixAt(placedBroadleaf, dummy.matrix); placedBroadleaf++; } } } pineTrunkInstances.count = placedPines; pineLeavesInstances.count = placedPines; broadleafTrunkInstances.count = placedBroadleaf; broadleafLeavesInstances.count = placedBroadleaf; allInstances.forEach(inst => { inst.instanceMatrix.needsUpdate = true; scene.add(inst); }); collisionObjects.push(pineTrunkInstances); collisionObjects.push(broadleafTrunkInstances); console.log(`Placed ${placedPines} pines and ${placedBroadleaf} broadleaf trees.`); }
+
+        // --- Simple Building Creation ---
+        function createSimpleBuildings(count) { /* ... (Avoid pond) ... */ const bM=new THREE.MeshStandardMaterial({color:0xcccccc,roughness:0.8,metalness:0.1});const minS=4,maxS=8;const minH=5,maxH=12;const bIC=count;const d=new THREE.Object3D();const bG=new THREE.BoxGeometry(1,1,1);simpleBuildingInstances=new THREE.InstancedMesh(bG,bM,bIC);simpleBuildingInstances.castShadow=true;simpleBuildingInstances.receiveShadow=true;const tS=200;const rW=6;const mBD=rW/2+10;let pB=0;for(let i=0;i<count;i++){if(pB>=bIC)break;let x,z,dTRC;let att=0;const maxAtt=30;do{x=Math.random()*tS-tS/2;z=Math.random()*tS-tS/2; const distToPondCenterSq = x*x+z*z - 2*x*pondCenter.x - 2*z*pondCenter.y + pondCenter.x*pondCenter.x + pondCenter.y*pondCenter.y; if(distToPondCenterSq < (pondRadius+5)*(pondRadius+5)) { att++; continue; } /* Avoid pond */ let mDS=Infinity;for(const cP of roadCurvePathPoints){const dx=x-cP.x;const dz=z-cP.z;const dS=dx*dx+dz*dz;if(dS<mDS){mDS=dS;}}dTRC=Math.sqrt(mDS);att++;}while(dTRC<mBD&&att<maxAtt);if(dTRC>=mBD){const y=getTerrainHeightAt(x,z);const w=THREE.MathUtils.randFloat(minS,maxS);const dp=THREE.MathUtils.randFloat(minS,maxS);const h=THREE.MathUtils.randFloat(minH,maxH);d.position.set(x,y+h/2,z);d.scale.set(w,h,dp);d.rotation.y=Math.random()*Math.PI*0.25;d.updateMatrix();simpleBuildingInstances.setMatrixAt(pB,d.matrix);pB++;}}simpleBuildingInstances.count=pB;simpleBuildingInstances.instanceMatrix.needsUpdate=true;scene.add(simpleBuildingInstances);collisionObjects.push(simpleBuildingInstances);console.log(`Placed ${pB} buildings.`); }
+
+        // --- Rock Creation ---
+        function createRocks(count) {
+             const rockMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9, metalness: 0.1 });
+             const minSize = 0.5, maxSize = 2.0;
+             const rockInstanceCount = count;
+             const dummy = new THREE.Object3D();
+
+             // Create base geometry (Icosahedron looks rocky)
+             const rockGeometry = new THREE.IcosahedronGeometry(1, 0); // Radius 1, subdiv 0 (low poly)
+             // Add simple random displacement to vertices
+             const pos = rockGeometry.attributes.position;
+             const vec = new THREE.Vector3();
+             for (let i = 0; i < pos.count; i++) {
+                 vec.fromBufferAttribute(pos, i);
+                 vec.multiplyScalar(1 + (Math.random() - 0.5) * 0.4); // Randomize radius slightly
+                 pos.setXYZ(i, vec.x, vec.y, vec.z);
+             }
+             rockGeometry.computeVertexNormals();
+
+             rockInstances = new THREE.InstancedMesh(rockGeometry, rockMaterial, rockInstanceCount);
+             rockInstances.castShadow = true;
+             rockInstances.receiveShadow = true;
+
+             const terrainSize = 200; const roadWidth = 6;
+             const minDistRoad = roadWidth / 2 + 2; // Min dist from road
+             const minDistPond = pondRadius + 3; // Min dist from pond center
+
+             let placedRocks = 0;
+             for (let i = 0; i < count * 1.5; i++) { // Try more placements
+                 if (placedRocks >= rockInstanceCount) break;
+                 let x, z, distanceToRoadCenter; let attempts = 0; const maxAttempts = 20;
+                 let validPos = false;
+                 do {
+                     x = Math.random() * terrainSize - terrainSize / 2;
+                     z = Math.random() * terrainSize - terrainSize / 2;
+
+                     // Check pond distance
+                     const distToPondCenterSq = x*x+z*z - 2*x*pondCenter.x - 2*z*pondCenter.y + pondCenter.x*pondCenter.x + pondCenter.y*pondCenter.y;
+                     if(distToPondCenterSq < minDistPond*minDistPond) { attempts++; continue; } // Too close to pond
+
+                     // Check road distance
+                     let minDistanceSqRoad = Infinity;
+                     for (const curvePt of roadCurvePathPoints) { const dx=x-curvePt.x; const dz=z-curvePt.z; const distSq=dx*dx+dz*dz; if (distSq<minDistanceSqRoad) minDistanceSqRoad=distSq; }
+                     distanceToRoadCenter = Math.sqrt(minDistanceSqRoad);
+                     if(distanceToRoadCenter < minDistRoad) { attempts++; continue; } // Too close to road
+
+                     validPos = true; // Found a valid spot
+                     attempts++;
+                 } while (!validPos && attempts < maxAttempts);
+
+                 if (validPos) {
+                     const y = getTerrainHeightAt(x, z);
+                     if(y < pondWater.position.y + 0.5) continue; // Don't place rocks underwater
+
+                     const size = THREE.MathUtils.randFloat(minSize, maxSize);
+                     dummy.position.set(x, y + size * 0.3, z); // Position slightly embedded
+                     dummy.scale.set(size, size, size);
+                     dummy.rotation.set(Math.random()*Math.PI*2, Math.random()*Math.PI*2, Math.random()*Math.PI*2); // Random rotation
+                     dummy.updateMatrix();
+                     rockInstances.setMatrixAt(placedRocks, dummy.matrix);
+                     placedRocks++;
+                 }
+             }
+             rockInstances.count = placedRocks;
+             rockInstances.instanceMatrix.needsUpdate = true;
+             scene.add(rockInstances);
+             collisionObjects.push(rockInstances); // Add rocks for collision
+             console.log(`Placed ${placedRocks} rocks.`);
+        }
+
+
+        // --- Coin Creation ---
+        function createCoins(count) { /* ... (Avoid pond) ... */ const cG=new THREE.CylinderGeometry(coinRadius,coinRadius,0.15,16);cG.rotateX(Math.PI/2);const cM=new THREE.MeshStandardMaterial({color:0xffd700,metalness:0.7,roughness:0.3,emissive:0xccaa00,emissiveIntensity:0.4});const rW=6;const pM=rW/2+1.5;for(let i=0;i<count;i++){let a=0;let cP=new THREE.Vector3();let dTRC=Infinity;do{const cT=Math.random();const cPt=roadCurvePathPoints[Math.floor(cT*(roadCurvePathPoints.length-1))];const nPI=Math.min(roadCurvePathPoints.length-1,Math.floor(cT*(roadCurvePathPoints.length-1))+1);const pPI=Math.max(0,Math.floor(cT*(roadCurvePathPoints.length-1))-1);const t=new THREE.Vector3().subVectors(roadCurvePathPoints[nPI],roadCurvePathPoints[pPI]).normalize();const perp=new THREE.Vector3(-t.z,0,t.x);const oD=(Math.random()-0.5)*pM*2;cP.copy(cPt).addScaledVector(perp,oD); const distToPondCenterSq = cP.x*cP.x+cP.z*cP.z - 2*cP.x*pondCenter.x - 2*cP.z*pondCenter.y + pondCenter.x*pondCenter.x + pondCenter.y*pondCenter.y; if(distToPondCenterSq < (pondRadius+1)*(pondRadius+1)) { a++; continue; } /* Avoid pond */ let mDS=Infinity;for(const pt of roadCurvePathPoints){const dx=cP.x-pt.x;const dz=cP.z-pt.z;const dS=dx*dx+dz*dz;if(dS<mDS){mDS=dS;}}dTRC=Math.sqrt(mDS);a++;}while(dTRC>pM&&a<20);if(dTRC<=pM){const tY=getTerrainHeightAt(cP.x,cP.z); if(tY < pondWater.position.y + 0.5) continue; /* Avoid underwater coins */ cP.y=tY+0.6;const coin=new THREE.Mesh(cG,cM);coin.position.copy(cP);coin.castShadow=true;scene.add(coin);coins.push(coin);}}console.log(`Placed ${coins.length} coins.`); }
+
+        // --- Jump Obstacle Creation ---
+        function createJumpObstacles(count) { /* ... (same) ... */ const oW=4;const oL=1.0;const oH=0.4;const g=new THREE.BoxGeometry(oW,oH,oL);const pos=g.attributes.position.array;for(let i=0;i<pos.length/3;i++){if(pos[i*3+2]<0){pos[i*3+1]-=oH*0.4;}}g.attributes.position.needsUpdate=true;g.computeVertexNormals();const m=new THREE.MeshStandardMaterial({color:0x8B4513,roughness:0.9});for(let i=0;i<count;i++){const cT=Math.random()*0.8+0.1;const cPt=roadCurvePathPoints[Math.floor(cT*(roadCurvePathPoints.length-1))];const nPI=Math.min(roadCurvePathPoints.length-1,Math.floor(cT*(roadCurvePathPoints.length-1))+2);const pPI=Math.max(0,Math.floor(cT*(roadCurvePathPoints.length-1))-2);const t=new THREE.Vector3().subVectors(roadCurvePathPoints[nPI],roadCurvePathPoints[pPI]).normalize();const ang=Math.atan2(t.x,t.z);const tY=getTerrainHeightAt(cPt.x,cPt.z); if(tY < pondWater.position.y + 0.5) continue; /* No obstacles underwater */ const obs=new THREE.Mesh(g,m);obs.position.set(cPt.x,tY+oH/2-0.05,cPt.z);obs.rotation.y=ang;obs.castShadow=true;obs.receiveShadow=true;scene.add(obs);roadObstacles.push(obs);}console.log(`Placed ${roadObstacles.length} jump obstacles.`); }
+
+        // --- Fish Creation ---
+        function createFish(count) {
+             const fishGeometry = new THREE.SphereGeometry(0.3, 8, 6); // Simple sphere
+             fishGeometry.scale(1.0, 0.5, 0.7); // Flatten into fish shape
+             const fishMaterial = new THREE.MeshStandardMaterial({ color: 0xff6347, metalness: 0.2, roughness: 0.6 }); // Tomato color
+             const fishInstanceCount = count;
+             const dummy = new THREE.Object3D();
+
+             fishInstances = new THREE.InstancedMesh(fishGeometry, fishMaterial, fishInstanceCount);
+             // Fish probably don't need shadows
+
+             let placedFish = 0;
+             const waterLevel = pondWater.position.y;
+             const bottomLevel = waterLevel - pondDepth + 0.5; // Min fish height
+
+             for (let i = 0; i < count; i++) {
+                 // Random position within the pond volume
+                 const angle = Math.random() * Math.PI * 2;
+                 const radius = Math.random() * pondRadius * 0.95; // Keep slightly away from edge
+                 const x = pondCenter.x + Math.cos(angle) * radius;
+                 const z = pondCenter.y + Math.sin(angle) * radius;
+                 const y = THREE.MathUtils.randFloat(bottomLevel, waterLevel - 0.4); // Random depth
+
+                 dummy.position.set(x, y, z);
+                 dummy.rotation.y = Math.random() * Math.PI * 2;
+                  dummy.userData.speed = Math.random() * 0.5 + 0.2; // Store random speed for animation
+                  dummy.userData.direction = Math.random() < 0.5 ? 1 : -1; // Store random direction
+                 dummy.updateMatrix();
+                 fishInstances.setMatrixAt(placedFish, dummy.matrix);
+                 placedFish++;
+             }
+             fishInstances.count = placedFish;
+             fishInstances.instanceMatrix.needsUpdate = true;
+             scene.add(fishInstances);
+             console.log(`Placed ${placedFish} fish.`);
+        }
+
+        // --- Terrain Height Lookup ---
+        function getTerrainHeightAt(x, z) { /* ... (same robust version) ... */ if (!terrain) return 0; const tS=200; const s=100; const hS=tS/2; const u=(x+hS)/tS; const v=(z+hS)/tS; if(u<-0.01||u>1.01||v<-0.01||v>1.01) return 0; const gX=Math.max(0,Math.min(s,Math.floor(u*s))); const gZ=Math.max(0,Math.min(s,Math.floor(v*s))); const i00=gZ*(s+1)+gX; const i10=gZ*(s+1)+Math.min(s,gX+1); const i01=Math.min(s,gZ+1)*(s+1)+gX; const i11=Math.min(s,gZ+1)*(s+1)+Math.min(s,gX+1); const pA=terrain.geometry.attributes.position; if(!pA||i00>=pA.count||i10>=pA.count||i01>=pA.count||i11>=pA.count||i00<0||i10<0||i01<0||i11<0){return 0;} const y00=pA.getY(i00); const y10=pA.getY(i10); const y01=pA.getY(i01); const y11=pA.getY(i11); const tx=(u*s)-gX; const tz=(v*s)-gZ; const yx0=y00+(y01-y00)*tz; const yx1=y10+(y11-y10)*tz; const iy=yx0+(yx1-yx0)*tx; return iy; }
+
+        // --- Load Bike Model ---
+        function loadBikeModel(startPos, nextPos) { /* ... (same wrapper + internal rotation) ... */ const bP='bike.glb';gltfLoader.load(bP,(gltf)=>{bikeModel=gltf.scene;bikeContainer=new THREE.Object3D();bikeContainer.add(bikeModel);scene.add(bikeContainer);const box=new THREE.Box3().setFromObject(bikeModel);const size=box.getSize(new THREE.Vector3());const dL=2.2;const mD=Math.max(size.x,size.y,size.z);if(mD>0){const sc=dL/mD;bikeModel.scale.set(sc,sc,sc);}else{bikeModel.scale.set(1,1,1);}bikeModel.rotation.y=-Math.PI/2;box.setFromObject(bikeModel);const bOYm=-box.min.y;bikeModel.position.y=bOYm;const tY=getTerrainHeightAt(startPos.x,startPos.z);bikeContainer.position.set(startPos.x,tY,startPos.z);const dir=new THREE.Vector3().subVectors(nextPos,startPos).normalize();const lAP=bikeContainer.position.clone().add(dir);lAP.y=bikeContainer.position.y;bikeContainer.lookAt(lAP);bikeModel.traverse((c)=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}});console.log("Bike loaded!");updateCamera(0,true);},undefined,(e)=>{/*Fallback*/console.error('Error loading bike.glb:',e);const pG=new THREE.BoxGeometry(1.5,0.8,0.8);const pM=new THREE.MeshStandardMaterial({color:0xff0000,roughness:0.5});bikeModel=new THREE.Mesh(pG,pM);bikeModel.castShadow=true;bikeModel.receiveShadow=true;bikeContainer=new THREE.Object3D();bikeContainer.add(bikeModel);scene.add(bikeContainer);const box=new THREE.Box3().setFromObject(bikeModel);bikeModel.position.y=-box.min.y;const tY=getTerrainHeightAt(startPos.x,startPos.z);bikeContainer.position.set(startPos.x,tY,startPos.z);const d=new THREE.Vector3().subVectors(nextPos,startPos).normalize();const lP=bikeContainer.position.clone().add(d);lP.y=bikeContainer.position.y;bikeContainer.lookAt(lP);console.warn("Using placeholder cube.");updateCamera(0,true);}); }
+
+        // --- Setup Movement Controls ---
+        function setupMovementControls() { /* ... (same) ... */ const btnF=document.getElementById('forward');const btnB=document.getElementById('backward');const btnL=document.getElementById('left');const btnR=document.getElementById('right');const addListeners=(btn,flagSetter)=>{const setF=(v)=>{flagSetter(v);isTouchingButton=v;};btn.addEventListener('touchstart',(e)=>{e.preventDefault();setF(true);},{passive:false});btn.addEventListener('touchend',(e)=>{e.preventDefault();setF(false);});btn.addEventListener('touchcancel',(e)=>{e.preventDefault();setF(false);});btn.addEventListener('mousedown',()=>setF(true));btn.addEventListener('mouseup',()=>setF(false));btn.addEventListener('mouseleave',()=>{if(flagSetter===moveForward||flagSetter===moveBackward||flagSetter===turnLeft||flagSetter===turnRight)flagSetter(false);isTouchingButton=false;});};addListeners(btnF,(v)=>moveForward=v);addListeners(btnB,(v)=>moveBackward=v);addListeners(btnL,(v)=>turnLeft=v);addListeners(btnR,(v)=>turnRight=v); }
+
+        // --- Setup Orbit Controls ---
+        function setupOrbitControls() { /* ... (same) ... */ const canvas=renderer.domElement;const onPD=(e)=>{let tE=e.target;let iB=false;while(tE!=null){if(tE.tagName==='BUTTON'&&tE.parentElement.classList.contains('control-area')){iB=true;break;}tE=tE.parentElement;}if(iB){isTouchingButton=true;return;}orbitPointerDown=true;lastPointerX=e.clientX||e.touches[0].clientX;lastPointerY=e.clientY||e.touches[0].clientY;};const onPM=(e)=>{if(!orbitPointerDown||isTouchingButton)return;if(!isOrbiting){isOrbiting=true;if(bikeContainer){cameraOrbitOffset.subVectors(camera.position,bikeContainer.position);}}const cPX=e.clientX||e.touches[0].clientX;const cPY=e.clientY||e.touches[0].clientY;const dX=cPX-lastPointerX;const dY=cPY-lastPointerY;lastPointerX=cPX;lastPointerY=cPY;if(bikeContainer&&isOrbiting){const tP=bikeContainer.position;const yA=new THREE.Vector3(0,1,0);const aX=-dX*orbitSensitivity;cameraOrbitOffset.applyAxisAngle(yA,aX);const cR=new THREE.Vector3().crossVectors(camera.up,camera.getWorldDirection(new THREE.Vector3()).negate()).normalize();const aY=-dY*orbitSensitivity;const cA=cameraOrbitOffset.angleTo(yA);const maxA=Math.PI-0.1;const minA=0.1;if(!((aY>0&&cA<=minA)||(aY<0&&cA>=maxA))){cameraOrbitOffset.applyAxisAngle(cR,aY);}camera.position.copy(tP).add(cameraOrbitOffset);camera.lookAt(tP);}e.preventDefault();};const onPU=(e)=>{orbitPointerDown=false;if(isOrbiting){isOrbiting=false;}isTouchingButton=false;};canvas.addEventListener('pointerdown',onPD,{passive:false});canvas.addEventListener('pointermove',onPM,{passive:false});canvas.addEventListener('pointerup',onPU);canvas.addEventListener('pointercancel',onPU);canvas.addEventListener('touchstart',onPD,{passive:false});canvas.addEventListener('touchmove',onPM,{passive:false});canvas.addEventListener('touchend',onPU);canvas.addEventListener('touchcancel',onPU);canvas.addEventListener('contextmenu',(e)=>e.preventDefault()); }
+
+        // --- Handle Window Resize ---
+        function onWindowResize() { /* ... (same) ... */ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        // --- Create Clouds ---
+        function createClouds(count) { /* ... (same) ... */ for (let i = 0; i < count; i++) { const c = document.createElement('div'); c.classList.add('cloud'); c.innerHTML = '☁️'; c.style.left = `${Math.random() * 100}vw`; c.style.top = `${Math.random() * 25 + 5}vh`; c.style.fontSize = `${Math.random() * 40 + 30}px`; const d = Math.random() * 40 + 50; c.style.animationDuration = `${d}s`; c.style.animationDelay = `-${Math.random() * d}s`; c.style.animationDirection = Math.random() < 0.5 ? 'alternate' : 'alternate-reverse'; cloudContainer.appendChild(c); } }
+
+        // --- Update UI ---
+        function updateUI() { /* ... (same + speedometer) ... */ if (!gameActive && timeLeft <= 0) return; scoreElement.innerText = `Score: ${score}`; const minutes = Math.floor(Math.max(0, timeLeft) / 60); const seconds = Math.floor(Math.max(0, timeLeft) % 60); timerElement.innerText = `Time: ${minutes}:${seconds.toString().padStart(2, '0')}`; const speedKPH = Math.abs(currentSpeed * 5.0); speedElement.innerText = `Speed: ${speedKPH.toFixed(0)} KPH`; }
+
+        // --- Check Collision ---
+        function checkCollision(moveDirection) { /* ... (same raycasting logic, uses collisionObjects) ... */ if (!bikeContainer || collisionObjects.length === 0) return false; const origin = bikeContainer.position.clone().add(new THREE.Vector3(0, rayVerticalOffset, 0)); const bikeDirection = new THREE.Vector3(); bikeContainer.getWorldDirection(bikeDirection); raycasterFront.set(origin, bikeDirection); raycasterFront.far = rayDistance; const intersectsFront = raycasterFront.intersectObjects(collisionObjects); if (intersectsFront.length > 0 && intersectsFront[0].distance < moveDirection.length() && currentSpeed > 0.1) { console.log("Collision FRONT with:", intersectsFront[0].object.constructor.name); currentSpeed *= 0.2; return true; } if (turnLeft || turnRight) { const sideDirection = bikeDirection.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), turnLeft ? Math.PI / 2 : -Math.PI / 2); const sideRaycaster = turnLeft ? raycasterLeft : raycasterRight; sideRaycaster.set(origin, sideDirection); sideRaycaster.far = bikeRadius * 0.8; const intersectsSide = sideRaycaster.intersectObjects(collisionObjects); if (intersectsSide.length > 0) { console.log(`Collision ${turnLeft ? 'LEFT' : 'RIGHT'} while turning.`); return true; } } return false; }
+
+        // --- Update Bike Movement (Handles Water) ---
+        function updateBike(delta) {
+            if (!bikeContainer || !gameActive) return;
+            const rotationAmount = turnSpeed * delta;
+
+            // --- Check if in Water ---
+            const bikePosXZ = new THREE.Vector2(bikeContainer.position.x, bikeContainer.position.z);
+            const distToPondCenterSq = bikePosXZ.distanceToSquared(pondCenter);
+            const isInWater = distToPondCenterSq < pondRadius * pondRadius;
+
+            // --- Acceleration/Deceleration (Adjusted for water) ---
+            const effectiveAccel = isInWater ? acceleration * waterDragFactor * 0.5 : acceleration; // Less accel in water
+            const effectiveMaxSpeed = isInWater ? waterMaxSpeed : maxSpeed;
+            const effectiveCoastDecel = isInWater ? coastDeceleration * 5 : coastDeceleration; // More drag in water
+            const effectiveBrake = isInWater ? brakeForce * 0.5 : brakeForce; // Less effective brakes in water
+
+            if (moveForward) {
+                currentSpeed += effectiveAccel * delta;
+            } else if (moveBackward) {
+                 if (currentSpeed > 0.1) currentSpeed -= effectiveBrake * delta;
+            } else { // Coasting
+                 if (Math.abs(currentSpeed) > 0.1) currentSpeed -= Math.sign(currentSpeed) * effectiveCoastDecel * delta;
+                 else currentSpeed = 0;
+            }
+            currentSpeed = THREE.MathUtils.clamp(currentSpeed, -effectiveMaxSpeed * 0.5, effectiveMaxSpeed); // Clamp speed
+
+            // --- Rotation ---
+            if (turnLeft) { bikeContainer.rotateY(rotationAmount * (isInWater ? 0.7 : 1.0)); } // Slower turning in water
+            if (turnRight) { bikeContainer.rotateY(-rotationAmount * (isInWater ? 0.7 : 1.0)); }
+
+            // --- Calculate Movement Vector ---
+            const moveDirection = new THREE.Vector3(0, 0, 1).applyQuaternion(bikeContainer.quaternion).multiplyScalar(currentSpeed * delta);
+
+            // --- Collision ---
+            const collisionDetected = checkCollision(moveDirection);
+
+            // --- Apply Horizontal Movement ---
+            if (!collisionDetected || currentSpeed <= 0) { bikeContainer.position.add(moveDirection); }
+            else { currentSpeed = 0; }
+
+            // --- Vertical Physics ---
+            bikeVerticalVelocity -= gravity * delta;
+            bikeContainer.position.y += bikeVerticalVelocity * delta;
+
+            // --- Ground/Water Bottom Collision ---
+            const terrainHeightAtPos = getTerrainHeightAt(bikeContainer.position.x, bikeContainer.position.z);
+            let groundLevel = terrainHeightAtPos;
+            // Note: terrainHeightAtPos already includes the pond depression
+
+            let isOnGround = bikeContainer.position.y <= groundLevel + 0.1;
+            if (isOnGround && bikeVerticalVelocity <= 0) {
+                 bikeContainer.position.y = groundLevel;
+                 bikeVerticalVelocity = 0;
+            }
+
+            // --- Boundary Check ---
+            const terrainHalfSize = 99.5; bikeContainer.position.x = Math.max(-terrainHalfSize, Math.min(terrainHalfSize, bikeContainer.position.x)); bikeContainer.position.z = Math.max(-terrainHalfSize, Math.min(terrainHalfSize, bikeContainer.position.z));
+
+             // --- Coin Collision ---
+             for (let i = coins.length - 1; i >= 0; i--) { const coin = coins[i]; const coinPosXZ = new THREE.Vector2(coin.position.x, coin.position.z); const distanceSq = bikePosXZ.distanceToSquared(coinPosXZ); const collisionThresholdSq = Math.pow(bikeRadius + coinRadius, 2); if (distanceSq < collisionThresholdSq) { score += 10; scene.remove(coin); coins.splice(i, 1); } }
+
+             // --- Road Obstacle Collision & Jump (Only if NOT in water) ---
+             if (!isInWater) {
+                const bikeBox = new THREE.Box3().setFromObject(bikeContainer);
+                for (const obstacle of roadObstacles) { const obstacleBox = new THREE.Box3().setFromObject(obstacle); if (bikeBox.intersectsBox(obstacleBox)) { if (currentSpeed > rampMinSpeed * 0.5 && bikeContainer.position.y < obstacle.position.y + 0.5) { if (bikeVerticalVelocity < smallJumpForce * 0.5) { bikeVerticalVelocity = smallJumpForce; } break; } } }
+             }
+        }
+
+        // --- Update Camera ---
+        function updateCamera(delta, forceUpdate = false) { /* ... (same) ... */ if (!bikeContainer) return; if (!isOrbiting) { const relOff = new THREE.Vector3(0, 4.5, -11.0); const targetPos = relOff.applyMatrix4(bikeContainer.matrixWorld); const lookAtOff = new THREE.Vector3(0, 1.5, 8.0); const targetLook = lookAtOff.applyMatrix4(bikeContainer.matrixWorld); const smooth = forceUpdate ? 1.0 : Math.min(1.0, 7.0 * delta); camera.position.lerp(targetPos, smooth); const currLook = new THREE.Vector3(); camera.getWorldDirection(currLook).multiplyScalar(20).add(camera.position); const finalLook = new THREE.Vector3().lerpVectors(currLook, targetLook, smooth); camera.lookAt(finalLook); } else { camera.lookAt(bikeContainer.position); } }
+
+        // --- Animate Fish ---
+        function animateFish(delta) {
+            if (!fishInstances) return;
+
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            const quaternion = new THREE.Quaternion();
+            const scale = new THREE.Vector3();
+            const rotation = new THREE.Euler();
+
+            for (let i = 0; i < fishInstances.count; i++) {
+                fishInstances.getMatrixAt(i, matrix);
+                matrix.decompose(position, quaternion, scale);
+                rotation.setFromQuaternion(quaternion);
+
+                // Simple back and forth movement along local Z
+                // Need a better way to manage state, using userData temporarily
+                const speed = fishInstances.userData[i]?.speed || 0.3; // Get speed or default
+                const direction = fishInstances.userData[i]?.direction || 1; // Get direction or default
+
+                 // Move fish slightly
+                 const move = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternion).multiplyScalar(speed * delta * direction);
+                 position.add(move);
+
+                 // Simple boundary check within pond (approximate)
+                 const distSq = position.x*position.x+position.z*position.z - 2*position.x*pondCenter.x - 2*position.z*pondCenter.y + pondCenter.x*pondCenter.x + pondCenter.y*pondCenter.y;
+                 if (distSq > (pondRadius * 0.9)**2 || Math.random() < 0.01) { // Turn if near edge or randomly
+                      rotation.y += Math.PI + (Math.random() - 0.5); // Turn around +/- random amount
+                      fishInstances.userData[i] = { speed: speed, direction: -direction }; // Reverse direction state (crude)
+                 } else {
+                      // Subtle rotation change over time
+                      rotation.y += (Math.random() - 0.5) * 0.1 * delta;
+                 }
+
+                // Keep fish within water depth
+                position.y = THREE.MathUtils.clamp(position.y, pondWater.position.y - pondDepth + 0.5, pondWater.position.y - 0.4);
+
+                quaternion.setFromEuler(rotation);
+                matrix.compose(position, quaternion, scale);
+                fishInstances.setMatrixAt(i, matrix);
+            }
+            fishInstances.instanceMatrix.needsUpdate = true;
+
+             // Initialize userData if it doesn't exist (only runs once per fish)
+            if (!fishInstances.userData[0]) {
+                 for (let i = 0; i < fishInstances.count; i++) {
+                      fishInstances.userData[i] = {
+                           speed: Math.random() * 0.5 + 0.2,
+                           direction: Math.random() < 0.5 ? 1 : -1
+                      };
+                 }
+            }
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            const delta = Math.min(clock.getDelta(), 0.05);
+
+            if (gameActive) {
+                timeLeft -= delta;
+                if (timeLeft <= 0) { /* ... (Game Over Logic) ... */ timeLeft = 0; gameActive = false; console.log("Time's Up! Final Score:", score); finalScoreElement.innerText = `Final Score: ${score}`; gameOverScreen.style.display = 'flex'; document.getElementById('controls').style.display = 'none'; }
+                if(gameActive) updateBike(delta);
+                 coins.forEach(coin => { if(coin) coin.rotation.z += 4 * delta; });
+                 animateFish(delta); // Animate fish
+            }
+
+             updateCamera(delta);
+             updateUI();
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        // --- Start ---
+        init();
+
+    </script>
+</body>
+</html>
+<script type="text/javascript">
+  atOptions = {
+    'key' : 'c02ddbf46d3c33f49b0b980ff3108321',
+    'format' : 'iframe',
+    'height' : 60,
+    'width' : 468,
+    'params' : {}
+  };
+</script>
+<script type="text/javascript" src="//www.highperformanceformat.com/c02ddbf46d3c33f49b0b980ff3108321/invoke.js"></script>
