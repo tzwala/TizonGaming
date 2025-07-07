@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Candy Crush India</title>
+    <link rel="icon" type="image/x-icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFuQfkbMHjdRRW9rUnrcW2KcNSS3Qtn4ITlhGzBJJ8YlhcZFMDdCY3umEv&s=10">
+    <!-- Added Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        /* --- Refreshed Variables --- */
+        :root {
+             --map-bg-start: #76d7f5; --map-bg-mid: #f5f7b2; --map-bg-end: #a8e6cf;
+             --path-color: rgba(255, 255, 255, 0.7); --marker-blue: #5c9ced; --marker-pink: #f775c1;
+             --marker-locked-bg: #b0b0b0; --marker-locked-text: #707070; --top-bar-bg: #ffffff;
+             --text-dark: #4a3f35; --text-light: #7a6a5a; --accent-pink: #ff84a7; --accent-gold: #ffcc4d;
+             --progress-bg: #e0e0e0; --progress-fill-score: #ffd700; --progress-fill-collect: #4caf50;
+             --game-screen-bg: #ffe8d6;
+             --game-board-bg: #b98b73;
+             --objective-bg: rgba(255, 255, 255, 0.9);
+        }
+        /* --- Updated Body, Screen Styles --- */
+        body { margin: 0; font-family: 'Nunito', 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif; background-color: var(--map-bg-start); color: var(--text-dark); overscroll-behavior: contain; height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; }
+        .screen { flex-grow: 1; width: 100%; display: none; overflow: hidden; position: relative; }
+        .screen.active { display: flex; flex-direction: column; }
+
+        /* --- Same Top Bar Styles --- */
+        .top-bar { display: flex; justify-content: space-around; align-items: center; padding: 8px 10px; background-color: var(--top-bar-bg); box-shadow: 0 2px 5px rgba(0,0,0,0.15); flex-shrink: 0; z-index: 100; font-size: 0.9em; font-weight: bold; }
+        .top-bar-item { display: flex; align-items: center; background-color: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 20px; }
+        .top-bar-item i { margin-right: 5px; font-style: normal; font-size: 1.2em; }
+        .top-bar-item .icon-heart { color: var(--accent-pink); } .top-bar-item .icon-coin { color: var(--accent-gold); } .top-bar-item .icon-star { color: var(--marker-blue); }
+        #lifeRefill { color: var(--text-light); font-size: 0.8em; margin-left: 4px; font-weight: normal; min-width: 25px; text-align: right; }
+
+        /* --- Updated Map Screen Styles --- */
+        #map-screen { background: linear-gradient(to bottom, var(--map-bg-start), var(--map-bg-mid), var(--map-bg-end)); overflow-y: auto; position: relative; -webkit-overflow-scrolling: touch; }
+        #map-content { position: relative; width: 100%; min-height: 100%; }
+        .level-marker { position: absolute; width: 55px; height: 55px; border-radius: 50%; border: 4px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.2); display: flex; justify-content: center; align-items: center; font-size: 1.2em; font-weight: 800; color: white; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; z-index: 5; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); background: radial-gradient(circle, var(--marker-blue), #4a8adc); transform: translateX(-50%); }
+        .level-marker:hover { transform: scale(1.1) translateX(-50%); box-shadow: 0 5px 10px rgba(0,0,0,0.3); }
+        .level-marker.unlocked:nth-child(odd) { background: radial-gradient(circle, var(--marker-pink), #d165a3); }
+        .level-marker.locked { background-color: var(--marker-locked-bg); color: var(--marker-locked-text); border-color: #d0d0d0; cursor: not-allowed; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); font-size: 1em; opacity: 0.8; background: var(--marker-locked-bg); }
+        .level-marker.locked:hover { transform: translateX(-50%); box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); }
+        .level-marker.locked::after { content: '🔒'; position: absolute; bottom: -8px; font-size: 0.6em; background-color: rgba(0,0,0,0.5); color: white; padding: 1px 3px; border-radius: 3px; }
+        .level-marker.current { border-color: var(--accent-gold); transform: scale(1.15) translateX(-50%); box-shadow: 0 0 15px var(--accent-gold); z-index: 6; }
+
+        /* --- Updated Game Screen (Layout) Styles --- */
+        #game-screen { background-color: var(--game-screen-bg); padding: 0 10px 10px 10px; box-sizing: border-box; align-items: center; overflow-y: auto; justify-content: flex-start; }
+        #game-info-area { width: 100%; max-width: 500px; background-color: var(--objective-bg); padding: 8px 10px; border-radius: 0 0 15px 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; box-sizing: border-box; flex-shrink: 0; z-index: 5; position: sticky; top: 0px; }
+        #objective-text { font-weight: bold; color: #8B4513; font-size: 0.95em; text-align: center; margin-bottom: 5px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; }
+        #objective-text img { height: 1.2em; vertical-align: middle; margin: 0 2px;}
+        #progress-bar-container { width: 100%; height: 12px; background-color: var(--progress-bg); border-radius: 6px; overflow: hidden; margin-top: 3px; }
+        #progress-bar-fill { height: 100%; width: 0%; background-color: var(--progress-fill-score); border-radius: 6px; transition: width 0.3s ease-out; }
+        #moves-display-game { text-align: center; font-weight: bold; font-size: 1.1em; color: var(--text-dark); margin-top: 5px; }
+
+        /* --- NEW Animations --- */
+        @keyframes dropIn { /* For initial drop and refills */
+            from { transform: translateY(-500px) scale(0.5); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        @keyframes hintPulseImage { /* Animate the image directly */
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
+        /* --- Updated Game Board and Candy Styles --- */
+        #game-board { display: flex; flex-wrap: wrap; background-color: var(--game-board-bg); padding: 5px; border-radius: 10px; box-shadow: 0 6px 12px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.3); border: 5px solid #855e42; position: relative; user-select: none; -webkit-user-select: none; -ms-user-select: none; touch-action: none; margin-bottom: 10px; flex-shrink: 0; }
+        .candy {
+            box-sizing: border-box; display: flex; justify-content: center; align-items: center;
+            background-color: rgba(255, 255, 255, 0.1); border-radius: 5px;
+            cursor: grab; overflow: hidden;
+            transition: transform 0.25s ease-in-out; /* For swap animation */
+        }
+        .candy img {
+            display: block; width: 88%; height: 88%; object-fit: contain;
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.25)); /* Make candies pop */
+            transition: inherit, transform 0.2s ease, filter 0.2s ease;
+        }
+        .candy:active { cursor: grabbing; }
+        .candy.matched {
+            background-color: transparent !important; border: none; box-shadow: none;
+            transform: scale(0); opacity: 0;
+            transition: transform 0.3s ease-in, opacity 0.3s ease-in;
+            cursor: default;
+        }
+         .candy.matched img { opacity: 0; transition: none; }
+        .candy.dragging { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 10; cursor: grabbing;}
+        .candy.dragging img { filter: drop-shadow(4px 4px 5px rgba(0,0,0,0.4)); }
+        .candy.hint-pulse img { /* Apply pulse to the image */
+            animation: hintPulseImage 1.2s infinite ease-in-out;
+        }
+
+        /* --- Same Coin Particle, Back Button Styles --- */
+        .coin-particle { position: absolute; width: 15px; height: 15px; background-color: gold; border-radius: 50%; border: 1px solid darkgoldenrod; z-index: 20; pointer-events: none; opacity: 1; transition: transform 0.6s cubic-bezier(0.5, -0.5, 0.8, 0.8), opacity 0.6s linear; }
+        #back-to-map-button { padding: 10px 20px; font-size: 1em; font-weight: bold; color: white; border: none; border-radius: 8px; cursor: pointer; background-color: #6c757d; margin-top: 15px; transition: background-color 0.2s; flex-shrink: 0; }
+        #back-to-map-button:hover { background-color: #5a6268; }
+        
+        /* === ADSTERRA CONTAINER STYLING START === */
+        #ad-container {
+            width: 320px; 
+            height: 50px;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            display: none; 
+            background-color: #f0f0f0;
+            border: 1px dashed #ccc;
+            flex-shrink: 0;
+        }
+        /* === ADSTERRA CONTAINER STYLING END === */
+
+        /* --- Refreshed Modal Styles --- */
+        .modal { display: none; position: fixed; z-index: 1000; /* Increased z-index to be above ads */ left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefae0; color: #5a3a22; padding: 25px; border-radius: 25px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.4); border: 5px solid #d4a373; max-width: 85%; width: 320px; font-weight: 700; }
+        .modal h2 { margin-top: 0; color: #bc6c25; font-size: 1.6em; font-weight: 800; } .modal p { font-size: 1em; margin-bottom: 15px;} .modal button { padding: 12px 20px; font-size: 0.9em; font-weight: 700; color: white; border: none; border-radius: 12px; cursor: pointer; transition: background-color 0.2s ease, transform 0.1s ease; margin: 10px 5px 0 5px; border-bottom: 3px solid rgba(0,0,0,0.2); }
+        .modal button:active { transform: translateY(2px); border-bottom-width: 1px; }
+        #modal-next-button { background-color: #60a863; } #modal-next-button:hover { background-color: #6eb771; }
+        #modal-restart-button { background-color: #fca311; } #modal-restart-button:hover { background-color: #fcb33b; }
+        #modal-map-button { background-color: #6c757d; } #modal-map-button:hover { background-color: #7d858c; }
+
+        /* --- Same Media Queries --- */
+        @media (max-height: 650px) { .top-bar { padding: 5px 8px; font-size: 0.8em; } #game-info-area { padding: 5px 8px; top: 45px; } #objective-text { font-size: 0.85em; } #moves-display-game { font-size: 1em; } .modal-content { padding: 15px; } .modal h2 { font-size: 1.2em; } .modal p { font-size: 0.9em; } .modal button { padding: 8px 15px; font-size: 0.8em; } }
+        @media (max-width: 400px) { .level-marker { width: 45px; height: 45px; font-size: 0.9em; } .top-bar-item span { display: none; } .top-bar-item i { margin-right: 0; font-size: 1.4em; } #back-to-map-button { padding: 8px 15px; font-size: 0.9em;} }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="top-bar-item">
+            <i class="icon-heart">❤️</i>
+            <i id="lives-display">5</i>
+            <i id="lifeRefill">30</i>
+        </div>
+        <div class="top-bar-item"><i class="icon-star">⭐</i><i id="current-level-display">Lv 1</i></div>
+        <div class="top-bar-item"><i class="icon-coin">🪙</i><i id="coins-display">100</i></div>
+    </div>
+
+    <!-- Map Screen -->
+    <div id="map-screen" class="screen active"> <div id="map-content"></div> </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+         <div id="game-info-area">
+             <div id="objective-text">Objective: Loading...</div>
+             <div id="progress-bar-container">
+                 <div id="progress-bar-fill"></div>
+             </div>
+             <div id="moves-display-game">Moves: 0</div>
+         </div>
+         <div id="game-board"></div>
+         <button id="back-to-map-button">Back to Map</button>
+
+         <!-- === ADSTERRA AD CONTAINER WITH YOUR CODE === -->
+         <div id="ad-container">
+            <script type="text/javascript">
+                atOptions = {
+                    'key' : 'dfa49210445f15b16e65b226cbbfc41e',
+                    'format' : 'iframe',
+                    'height' : 50,
+                    'width' : 320,
+                    'params' : {}
+                };
+            </script>
+            <script type="text/javascript" src="//www.highperformanceformat.com/dfa49210445f15b16e65b226cbbfc41e/invoke.js"></script>
+         </div>
+         <!-- === AD CONTAINER END === -->
+    </div>
+
+    <!-- Modal Dialog -->
+    <div id="level-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-title">Level Complete!</h2>
+            <p id="modal-message">Good job!</p>
+            <button id="modal-next-button">Next Level</button>
+            <button id="modal-restart-button">Restart Level</button>
+            <button id="modal-map-button">Back to Map</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const mapScreen = document.getElementById('map-screen');
+        const mapContent = document.getElementById('map-content');
+        const gameScreen = document.getElementById('game-screen');
+        const gameBoard = document.getElementById('game-board');
+        const livesDisplay = document.getElementById('lives-display');
+        const lifeRefillElement = document.getElementById('lifeRefill');
+        const coinsDisplay = document.getElementById('coins-display');
+        const currentLevelDisplay = document.getElementById('current-level-display');
+        const objectiveTextDisplay = document.getElementById('objective-text');
+        const progressBarFill = document.getElementById('progress-bar-fill');
+        const movesDisplayGame = document.getElementById('moves-display-game');
+        const modal = document.getElementById('level-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalNextButton = document.getElementById('modal-next-button');
+        const modalRestartButton = document.getElementById('modal-restart-button');
+        const modalMapButton = document.getElementById('modal-map-button');
+        const backToMapButton = document.getElementById('back-to-map-button');
+
+        // --- Web Audio API Setup ---
+        let audioContext; let isAudioContextResumed = false;
+        function initAudioContext() { try{window.AudioContext = window.AudioContext || window.webkitAudioContext; if(window.AudioContext){audioContext = new AudioContext(); console.log("AudioContext initial state:", audioContext.state); resumeAudioContext();} else {console.warn("Web Audio API not supported.");}} catch(e){console.error("Error creating AudioContext:",e);} }
+        function resumeAudioContext() { if(audioContext && audioContext.state === 'suspended'){console.log("Attempting to resume AudioContext..."); audioContext.resume().then(()=>{console.log("AudioContext resumed successfully."); isAudioContextResumed=true;}).catch(e=>console.error("Resuming context failed:", e));} else if (audioContext && audioContext.state === 'running'){isAudioContextResumed=true;} }
+        function playSoundGen(type) { if (!audioContext || audioContext.state !== 'running') { return; } try { const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); osc.connect(gain); gain.connect(audioContext.destination); gain.gain.setValueAtTime(0.15, audioContext.currentTime); let duration = 0.1; let freq1 = 440; let freq2 = freq1; let waveType = 'sine'; switch(type) { case 'buttonClick': freq1 = 700; duration = 0.06; waveType = 'triangle'; gain.gain.setValueAtTime(0.1, audioContext.currentTime); break; case 'swap': freq1 = 800; duration = 0.05; waveType = 'triangle'; break; case 'match': freq1 = 660; freq2 = 880; duration = 0.15; gain.gain.setValueAtTime(0.1, audioContext.currentTime); waveType = 'sine'; break; case 'collectCoin': freq1 = 1200; duration = 0.08; gain.gain.setValueAtTime(0.08, audioContext.currentTime); waveType = 'sine'; break; case 'invalid': freq1 = 150; duration = 0.2; waveType = 'square'; gain.gain.setValueAtTime(0.1, audioContext.currentTime); break; case 'winLevel': freq1 = 523; freq2 = 1046; duration = 0.5; gain.gain.setValueAtTime(0.2, audioContext.currentTime); waveType = 'triangle'; break; case 'loseLevel': freq1 = 220; freq2 = 110; duration = 0.6; waveType = 'sawtooth'; gain.gain.setValueAtTime(0.2, audioContext.currentTime); break; default: return; } osc.type = waveType; osc.frequency.setValueAtTime(freq1, audioContext.currentTime); if (freq1 !== freq2) { osc.frequency.linearRampToValueAtTime(freq2, audioContext.currentTime + duration * 0.8); } gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration); osc.start(audioContext.currentTime); osc.stop(audioContext.currentTime + duration); } catch (error) { console.error(`Error playing sound ${type}:`, error); } }
+
+        // --- Game Config & State ---
+        const TOTAL_LEVELS = 5000;
+        const gridWidth = 8;
+        const gridHeight = 8;
+        const candyImageUrls = [
+            'https://i.ibb.co/d0bQrFJ9/Purplecandy-HTML5.png', 'https://i.ibb.co/3mvdX6tL/Redcandy-HTML5.png',
+            'https://i.ibb.co/PGtvwh0V/Greencandy-HTML5.png', 'https://i.ibb.co/VWk1KH6S/Bluecandy.png',
+            'https://i.ibb.co/mrNnfz8s/Yellowcandy-HTML5.png', 'https://i.ibb.co/wjSKPP1/orange-candy.png'
+        ];
+        const squareSize = 45; const swipeThreshold = squareSize * 0.4;
+        const SWAP_ANIM_DURATION = 250; const INVALID_SWAP_RETURN_DURATION = 250; const MATCH_REMOVE_DELAY = 350; const INITIAL_DROP_STAGGER_ROW = 0.06; const INITIAL_DROP_STAGGER_COL = 0.03; const INITIAL_DROP_DURATION = 0.6; const REFILL_DROP_DURATION = 0.4; const REFILL_DROP_STAGGER_RANDOM = 0.15; const POST_ANIM_BUFFER = 100; 
+
+        const levelConfigs = generateLevels(TOTAL_LEVELS);
+        let currentLevelIndex = 0; let highestUnlockedLevel = 1; let currentLevelConfig = {};
+        let score = 0; let movesLeft = 0; let currentObjectiveState = {}; let userCoins = 100; let userLives = 5;
+        const storageKeyBase = 'candyJourney_v6_enhanced'; const unlockedLevelKey = storageKeyBase + 'unlockedLevel';
+        const coinsKey = storageKeyBase + 'coins'; const livesKey = storageKeyBase + 'lives';
+        let board = []; let interactionEnabled = false; let startElement = null, endElement = null;
+        let startX = 0, startY = 0, currentX = 0, currentY = 0; let gameLocked = false;
+        let hintTimeoutId = null; const hintDelay = 5000; let currentHintElements = [];
+        const maxLives = 5; const countdownDuration = 30; let remainingSeconds = countdownDuration; let countdownIntervalId = null;
+
+        // --- Helper Functions ---
+        function savePlayerData() { try { localStorage.setItem(unlockedLevelKey, highestUnlockedLevel.toString()); localStorage.setItem(coinsKey, userCoins.toString()); localStorage.setItem(livesKey, userLives.toString()); } catch (error) { console.error("Error saving player data:", error); } }
+        function updateTopBarUI() { if (livesDisplay) livesDisplay.textContent = userLives; if (coinsDisplay) coinsDisplay.textContent = userCoins; if (currentLevelDisplay) currentLevelDisplay.textContent = `Lv ${Math.min(highestUnlockedLevel, TOTAL_LEVELS)}`; updateCountdownDisplay(); }
+        function loadPlayerData() { try { highestUnlockedLevel = parseInt(localStorage.getItem(unlockedLevelKey) || '1', 10); userCoins = parseInt(localStorage.getItem(coinsKey) || '100', 10); userLives = parseInt(localStorage.getItem(livesKey) || '5', 10); if (isNaN(highestUnlockedLevel) || highestUnlockedLevel < 1) highestUnlockedLevel = 1; if (isNaN(userCoins) || userCoins < 0) userCoins = 0; if (isNaN(userLives) || userLives < 0) userLives = maxLives; userLives = Math.min(userLives, maxLives); if (highestUnlockedLevel > TOTAL_LEVELS + 1) highestUnlockedLevel = TOTAL_LEVELS + 1; } catch (error) { console.error("Error loading player data:", error); highestUnlockedLevel = 1; userCoins = 100; userLives = maxLives; } updateTopBarUI(); }
+        
+        // This function now handles showing/hiding the ad container
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId)?.classList.add('active');
+
+            const adContainer = document.getElementById('ad-container');
+            if (adContainer) {
+                if (screenId === 'game-screen') {
+                    adContainer.style.display = 'block';
+                } else {
+                    adContainer.style.display = 'none';
+                }
+            }
+        }
+        
+        function generateLevels(count) { const levels = []; const objTypes = ['score', 'collect']; const numCandyTypes = candyImageUrls.length; for (let i = 0; i < count; i++) { const levelNum = i + 1; const moves = 15 + Math.floor(i / 15) + Math.floor(Math.random() * 5); const type = objTypes[Math.floor(Math.random() * objTypes.length)]; let objective = {}; let message = ""; if (type === 'score') { const target = 500 + (i * 50) + Math.floor(Math.random() * 200); objective = { type: 'score', target: target }; message = `Reach ${target} points!`; } else { const numTargetsToCollect = Math.min(numCandyTypes, 2 + Math.floor(i / 20)); const targets = []; const availableIndexes = Array.from({ length: numCandyTypes }, (_, k) => k); for (let t = 0; t < numTargetsToCollect; t++) { if (availableIndexes.length === 0) break; const randomPoolIndex = Math.floor(Math.random() * availableIndexes.length); const candyIndex = availableIndexes.splice(randomPoolIndex, 1)[0]; const countNeeded = 5 + Math.floor(i / 15) + Math.floor(Math.random() * 3); targets.push({ index: candyIndex, count: countNeeded }); } objective = { type: 'collect', targets: targets }; message = "Collect: "; } levels.push({ moves: moves, objective: objective, message: message }); } return levels; }
+
+        // --- All other JavaScript functions remain the same ---
+        function renderMap() { mapContent.innerHTML = ''; let currentTop = 50; let currentLeftPercent = 50; let direction = 1; const horizontalVariance = 35; const verticalStep = 75; let mapHeight = currentTop; for (let i = 0; i < TOTAL_LEVELS; i++) { const levelNum = i + 1; const marker = document.createElement('div'); marker.classList.add('level-marker'); marker.textContent = levelNum; marker.dataset.levelIndex = i; if (i % 5 === 0) { direction *= -1; } let shift = (Math.random() * horizontalVariance * 0.6 + horizontalVariance * 0.1) * direction; currentLeftPercent += shift; currentLeftPercent = Math.max(10, Math.min(90, currentLeftPercent)); marker.style.left = `${currentLeftPercent}%`; marker.style.top = `${currentTop}px`; marker.style.transform = 'translateX(-50%)'; if (levelNum <= highestUnlockedLevel) { marker.classList.add('unlocked'); if(levelNum % 2 === 0) marker.style.background = 'radial-gradient(circle, var(--marker-pink), #d165a3)'; if (levelNum === highestUnlockedLevel && levelNum <= TOTAL_LEVELS) { marker.classList.add('current'); } marker.addEventListener('click', handleLevelMarkerClick); } else { marker.classList.add('locked'); } mapContent.appendChild(marker); currentTop += verticalStep + Math.random() * 10; mapHeight = currentTop; } mapContent.style.height = `${mapHeight + 100}px`; }
+        function scrollToCurrentLevel() { mapContent.querySelector('.level-marker.current')?.scrollIntoView({ behavior: 'auto', block: 'center' }); }
+        function handleLevelMarkerClick(event) { resumeAudioContext(); playSoundGen('buttonClick'); const index = parseInt(event.currentTarget.dataset.levelIndex, 10); if (!isNaN(index)) { startGame(index); } }
+        function incrementStoredValue() { try { let currentVal = userLives; if (currentVal < maxLives) { const newVal = currentVal + 1; userLives = newVal; localStorage.setItem(livesKey, newVal.toString()); updateTopBarUI(); return true; } else { return false; } } catch (error) { console.error("Timer Error:", error); return false; } }
+        function updateCountdownDisplay() { if (lifeRefillElement) { if (userLives >= maxLives || countdownIntervalId === null) { lifeRefillElement.textContent = "Full"; } else { lifeRefillElement.textContent = String(remainingSeconds).padStart(2, '0'); } } }
+        function handleTick() { if (userLives >= maxLives) { if (countdownIntervalId) clearInterval(countdownIntervalId); countdownIntervalId = null; remainingSeconds = 0; updateCountdownDisplay(); return; } remainingSeconds--; if (remainingSeconds < 0) { if (incrementStoredValue()) { remainingSeconds = countdownDuration; if (userLives >= maxLives) { if (countdownIntervalId) clearInterval(countdownIntervalId); countdownIntervalId = null; remainingSeconds = 0; } } else { if (countdownIntervalId) clearInterval(countdownIntervalId); countdownIntervalId = null; remainingSeconds = 0; } } updateCountdownDisplay(); }
+        function initializeTimer() { if (!lifeRefillElement) { console.error("Life refill element not found."); return; } if (countdownIntervalId) clearInterval(countdownIntervalId); countdownIntervalId = null; if (userLives >= maxLives) { remainingSeconds = 0; updateCountdownDisplay(); } else { remainingSeconds = countdownDuration; updateCountdownDisplay(); countdownIntervalId = setInterval(handleTick, 1000); } }
+        function clearHint() { if (hintTimeoutId) { clearTimeout(hintTimeoutId); hintTimeoutId = null; } if (currentHintElements.length > 0) { currentHintElements.forEach(el => el?.classList.remove('hint-pulse')); currentHintElements = []; } }
+        function startHintTimer() { clearHint(); if (interactionEnabled && !gameLocked) { hintTimeoutId = setTimeout(findAndShowHint, hintDelay); } }
+        function findAndShowHint() { if (!interactionEnabled || gameLocked) return; const hint = findHint(); if (hint) { showHint(hint); } else { console.log("No hint found."); startHintTimer(); } }
+        function findHint() { for (let r = 0; r < gridHeight; r++) { for (let c = 0; c < gridWidth; c++) { if (c < gridWidth - 1 && checkPotentialSwap(r, c, r, c + 1)) { return [document.getElementById(`candy-${r}-${c}`), document.getElementById(`candy-${r}-${c + 1}`)]; } if (r < gridHeight - 1 && checkPotentialSwap(r, c, r + 1, c)) { return [document.getElementById(`candy-${r}-${c}`), document.getElementById(`candy-${r+1}-${c}`)]; } } } return null; }
+        function checkPotentialSwap(r1, c1, r2, c2) { const val1 = board[r1][c1]; const val2 = board[r2][c2]; if (val1 === null || val2 === null) return false; board[r1][c1] = val2; board[r2][c2] = val1; let createsMatch = checkMatchAt(r1, c1) || checkMatchAt(r2, c2); board[r1][c1] = val1; board[r2][c2] = val2; return createsMatch; }
+        function checkMatchAt(r, c) { const val = board[r][c]; if (val === null) return false; let countH = 1; for (let i = c - 1; i >= 0 && board[r][i] === val; i--) countH++; for (let i = c + 1; i < gridWidth && board[r][i] === val; i++) countH++; if (countH >= 3) return true; let countV = 1; for (let i = r - 1; i >= 0 && board[i][c] === val; i--) countV++; for (let i = r + 1; i < gridHeight && board[i][c] === val; i++) countV++; return countV >= 3; }
+        function showHint(elements) { clearHint(); elements.forEach(el => { if (el) { el.classList.add('hint-pulse'); currentHintElements.push(el); } }); }
+        function startGame(levelIndex) { if (userLives <= 0) { playSoundGen('invalid'); showModal("Out of Lives!", "Wait for refill or get more.", false, false, true); return; } clearHint(); if (loadLevel(levelIndex)) { showScreen('game-screen'); } else { showScreen('map-screen'); } }
+        function loadLevel(levelIndex) { if (levelIndex < 0 || levelIndex >= levelConfigs.length) return false; currentLevelIndex = levelIndex; currentLevelConfig = levelConfigs[currentLevelIndex]; if (!currentLevelConfig || !currentLevelConfig.objective) return false; score = 0; movesLeft = currentLevelConfig.moves; interactionEnabled = false; board = []; gameLocked = false; currentObjectiveState = {}; if (currentLevelConfig.objective.type === 'collect') { currentLevelConfig.objective.targets.forEach(target => { currentObjectiveState[target.index] = target.count; }); } createBoard(); updateGameScreenUI(); const maxStaggerDelay = ((gridHeight - 1) * INITIAL_DROP_STAGGER_ROW) + ((gridWidth - 1) * INITIAL_DROP_STAGGER_COL); const boardReadyDelay = (maxStaggerDelay + INITIAL_DROP_DURATION) * 1000 + POST_ANIM_BUFFER; setTimeout(() => { if (!checkForAllMatches()) { interactionEnabled = true; setInteractionOnCandies(true); startHintTimer(); } }, boardReadyDelay); return true; }
+        function createBoard() { board = []; gameBoard.innerHTML = ''; gameBoard.style.width = `${gridWidth * squareSize}px`; gameBoard.style.height = `${gridHeight * squareSize}px`; for (let r = 0; r < gridHeight; r++) { let row = []; for (let c = 0; c < gridWidth; c++) { let candyIndex; let attempts = 0; do { candyIndex = Math.floor(Math.random() * candyImageUrls.length); attempts++; if (attempts > 20) break; } while ((c >= 2 && row[c - 1] === candyIndex && row[c - 2] === candyIndex) || (r >= 2 && board[r - 1][c] === candyIndex && board[r - 2][c] === candyIndex)); row.push(candyIndex); const candyDiv = document.createElement('div'); candyDiv.classList.add('candy'); candyDiv.style.width = `${squareSize}px`; candyDiv.style.height = `${squareSize}px`; candyDiv.setAttribute('draggable', true); candyDiv.dataset.row = r; candyDiv.dataset.col = c; candyDiv.id = `candy-${r}-${c}`; const candyImg = document.createElement('img'); candyImg.src = candyImageUrls[candyIndex]; candyImg.alt = `Candy type ${candyIndex}`; candyImg.setAttribute('draggable', false); candyDiv.appendChild(candyImg); const staggerDelay = (r * INITIAL_DROP_STAGGER_ROW + c * INITIAL_DROP_STAGGER_COL); candyDiv.style.opacity = 0; candyDiv.style.animation = `dropIn ${INITIAL_DROP_DURATION}s ease-out ${staggerDelay}s 1 forwards`; candyDiv.addEventListener('animationend', () => { candyDiv.style.animation = ''; if (!candyDiv.classList.contains('matched')) { candyDiv.style.opacity = 1; } }, { once: true }); gameBoard.appendChild(candyDiv); } board.push(row); } addInteractionListeners(); }
+        function addInteractionListeners() { const candies = document.querySelectorAll('#game-board .candy'); candies.forEach(candy => { candy.removeEventListener('dragstart', handleDragStart); candy.removeEventListener('dragover', handleDragOver); candy.removeEventListener('drop', handleDrop); candy.removeEventListener('dragend', handleDragEnd); candy.removeEventListener('touchstart', handleTouchStart); candy.removeEventListener('touchmove', handleTouchMove); candy.removeEventListener('touchend', handleTouchEnd); candy.removeEventListener('touchcancel', handleTouchCancel); candy.addEventListener('dragstart', handleDragStart); candy.addEventListener('dragover', handleDragOver); candy.addEventListener('drop', handleDrop); candy.addEventListener('dragend', handleDragEnd); candy.addEventListener('touchstart', handleTouchStart, { passive: true }); candy.addEventListener('touchmove', handleTouchMove, { passive: false }); candy.addEventListener('touchend', handleTouchEnd); candy.addEventListener('touchcancel', handleTouchCancel); }); }
+        function updateGameScreenUI() { movesDisplayGame.textContent = `Moves: ${movesLeft}`; objectiveTextDisplay.innerHTML = ''; let textPrefix = ``; let progressPercent = 0; if (currentLevelConfig.objective) { if (currentLevelConfig.objective.type === 'score') { const targetScore = currentLevelConfig.objective.target; textPrefix = `Score: ${score} / ${targetScore}`; progressPercent = targetScore > 0 ? Math.min(100, (score / targetScore) * 100) : (score > 0 ? 100 : 0); progressBarFill.style.backgroundColor = 'var(--progress-fill-score)'; } else if (currentLevelConfig.objective.type === 'collect') { textPrefix = 'Collect: '; objectiveTextDisplay.appendChild(document.createTextNode(textPrefix)); let totalTarget = 0; let totalCollected = 0; currentLevelConfig.objective.targets.forEach((target, index) => { const remaining = currentObjectiveState[target.index] || 0; const collected = target.count - remaining; totalTarget += target.count; totalCollected += collected; const targetSpan = document.createElement('span'); targetSpan.style.marginRight = '8px'; const targetImg = document.createElement('img'); targetImg.src = candyImageUrls[target.index]; targetImg.alt = `Candy ${target.index}`; targetSpan.appendChild(targetImg); targetSpan.appendChild(document.createTextNode(` ${collected}/${target.count}`)); objectiveTextDisplay.appendChild(targetSpan); }); progressPercent = totalTarget > 0 ? Math.min(100, (totalCollected / totalTarget) * 100) : 0; progressBarFill.style.backgroundColor = 'var(--progress-fill-collect)'; } if (currentLevelConfig.objective.type === 'score') { objectiveTextDisplay.textContent = textPrefix; } } else { objectiveTextDisplay.textContent = "Loading objective..."; } progressBarFill.style.width = `${progressPercent}%`; }
+        function handleInteractionStart(element, x, y) { clearHint(); if (!isAudioContextResumed) resumeAudioContext(); if (!interactionEnabled || !element || element.classList.contains('matched')) return; document.querySelectorAll('.candy.dragging').forEach(el => el.classList.remove('dragging')); startElement = element; startX = x; startY = y; currentX = x; currentY = y; startElement.classList.add('dragging'); }
+        function handleInteractionMoveLogic(x, y) { if (!startElement || !interactionEnabled) return false; currentX = x; currentY = y; const deltaX = currentX - startX; const deltaY = currentY - startY; const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY); let preventDefaultNeeded = false; if (distance > 5) { preventDefaultNeeded = true; } else { return false; } if (distance > swipeThreshold) { let targetR = parseInt(startElement.dataset.row); let targetC = parseInt(startElement.dataset.col); if (Math.abs(deltaX) > Math.abs(deltaY)) { targetC += (deltaX > 0) ? 1 : -1; } else { targetR += (deltaY > 0) ? 1 : -1; } if (targetR >= 0 && targetR < gridHeight && targetC >= 0 && targetC < gridWidth) { endElement = document.getElementById(`candy-${targetR}-${targetC}`); if (endElement && endElement.classList.contains('matched')) { endElement = null; } } else { endElement = null; } handleInteractionEnd(); return true; } return preventDefaultNeeded; }
+        function handleInteractionEnd() { const wasDragging = startElement?.classList.contains('dragging'); if (startElement) startElement.classList.remove('dragging'); if (!wasDragging || !interactionEnabled || !startElement || !endElement || !endElement.classList.contains('candy') || endElement.classList.contains('matched')) { if (interactionEnabled && !gameLocked) startHintTimer(); cleanUpInteractionState(); return; } let r1 = parseInt(startElement.dataset.row), c1 = parseInt(startElement.dataset.col); let r2 = parseInt(endElement.dataset.row), c2 = parseInt(endElement.dataset.col); if (r1 === r2 && c1 === c2) { if (interactionEnabled && !gameLocked) startHintTimer(); cleanUpInteractionState(); return; } if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) { animateSwap(startElement, endElement, (moveConsumed) => { if (moveConsumed) { movesLeft--; updateGameScreenUI(); } }); } else { playSoundGen('invalid'); if (interactionEnabled && !gameLocked) startHintTimer(); } cleanUpInteractionState(); }
+        function animateSwap(el1, el2, onSwapComplete) { interactionEnabled = false; setInteractionOnCandies(false); const r1 = parseInt(el1.dataset.row), c1 = parseInt(el1.dataset.col); const r2 = parseInt(el2.dataset.row), c2 = parseInt(el2.dataset.col); const deltaX = (c2 - c1) * squareSize, deltaY = (r2 - r1) * squareSize; el1.style.transform = `translate(${deltaX}px, ${deltaY}px)`; el1.style.zIndex = '10'; el2.style.transform = `translate(${-deltaX}px, ${-deltaY}px)`; el2.style.zIndex = '10'; playSoundGen('swap'); setTimeout(() => { el1.style.transform = ''; el1.style.zIndex = ''; el2.style.transform = ''; el2.style.zIndex = ''; const img1 = el1.querySelector('img'), img2 = el2.querySelector('img'); const src1 = img1.src; img1.src = img2.src; img2.src = src1; const temp = board[r1][c1]; board[r1][c1] = board[r2][c2]; board[r2][c2] = temp; const matchFound = checkForAllMatches(); if (!matchFound) { playSoundGen('invalid'); el1.style.transform = `translate(${deltaX}px, ${deltaY}px)`; el2.style.transform = `translate(${-deltaX}px, ${-deltaY}px)`; setTimeout(() => { el1.style.transform = ''; el2.style.transform = ''; img2.src = img1.src; img1.src = src1; board[r2][c2] = board[r1][c1]; board[r1][c1] = temp; if (!gameLocked) { interactionEnabled = true; setInteractionOnCandies(true); startHintTimer(); } }, INVALID_SWAP_RETURN_DURATION); onSwapComplete(false); if (movesLeft <= 0) checkLevelCompletion(); } else { onSwapComplete(true); } }, SWAP_ANIM_DURATION); }
+        function handleDragStart(e) { handleInteractionStart(this, e.clientX, e.clientY); }
+        function handleDragOver(e) { e.preventDefault(); }
+        function handleDrop(e) { e.preventDefault(); if (!interactionEnabled || !startElement || this === startElement) return; if (this.classList.contains('candy') && !this.classList.contains('matched')) { endElement = this; } else { endElement = null; } }
+        function handleDragEnd() { handleInteractionEnd(); }
+        function handleTouchStart(e) { if (e.touches.length === 1) { handleInteractionStart(e.currentTarget, e.touches[0].clientX, e.touches[0].clientY); } }
+        function handleTouchMove(e) { if (startElement && e.touches.length === 1) { if (handleInteractionMoveLogic(e.touches[0].clientX, e.touches[0].clientY)) { e.preventDefault(); } } }
+        function handleTouchEnd(e) { if (startElement && !endElement && e.changedTouches.length === 1) { const touch = e.changedTouches[0]; startElement.style.visibility = 'hidden'; const elementUnderFinger = document.elementFromPoint(touch.clientX, touch.clientY); startElement.style.visibility = 'visible'; if (elementUnderFinger && elementUnderFinger.closest('.candy') && elementUnderFinger.closest('.candy') !== startElement && !elementUnderFinger.closest('.candy').classList.contains('matched')) { endElement = elementUnderFinger.closest('.candy'); } else { endElement = null; } } handleInteractionEnd(); }
+        function handleTouchCancel(e) { if(startElement) startElement.classList.remove('dragging'); if (interactionEnabled && !gameLocked) { startHintTimer(); } cleanUpInteractionState(); }
+        function cleanUpInteractionState() { if(startElement)startElement.classList.remove('dragging'); startElement = null; endElement = null; startX = 0; startY = 0; currentX = 0; currentY = 0; }
+        function removeMatches(matchedCoords) { clearHint(); let pointsEarned = 0; let playedMatchSound = false; let collectedObjectiveItems = false; matchedCoords.forEach(coord => { const [r, c] = coord.split('-').map(Number); if (r >= 0 && r < gridHeight && c >= 0 && c < gridWidth && board[r][c] !== null) { const matchedIndex = board[r][c]; board[r][c] = null; const candyElement = document.getElementById(`candy-${r}-${c}`); if (candyElement) { spawnCoinParticle(candyElement); candyElement.classList.add('matched'); candyElement.setAttribute('draggable', false); } pointsEarned++; if (currentLevelConfig.objective.type === 'collect' && currentObjectiveState.hasOwnProperty(matchedIndex) && currentObjectiveState[matchedIndex] > 0) { currentObjectiveState[matchedIndex]--; collectedObjectiveItems = true; } if (!playedMatchSound) { playSoundGen('match'); playedMatchSound = true; } } }); if (pointsEarned > 0) { userCoins += pointsEarned; updateScore(pointsEarned * 10); updateTopBarUI(); if (collectedObjectiveItems || currentLevelConfig.objective.type === 'score') { updateGameScreenUI(); } } else { if (interactionEnabled && !gameLocked) startHintTimer(); return; } setTimeout(() => { moveCandiesDown(); generateNewCandies(); updateFallingCandiesVisuals(); if (!checkForAllMatches()) { if (!gameLocked) { interactionEnabled = true; setInteractionOnCandies(true); startHintTimer(); } checkLevelCompletion(); } }, MATCH_REMOVE_DELAY); }
+        function updateFallingCandiesVisuals() { for (let r = 0; r < gridHeight; r++) { for (let c = 0; c < gridWidth; c++) { const candyElement = document.getElementById(`candy-${r}-${c}`); if (!candyElement) continue; const candyIndex = board[r][c]; const imgElement = candyElement.querySelector('img'); if (candyIndex !== null) { const expectedSrc = candyImageUrls[candyIndex]; let needsUpdate = candyElement.classList.contains('matched') || (imgElement && imgElement.src !== expectedSrc); if (needsUpdate) { if (imgElement) { imgElement.src = expectedSrc; imgElement.alt = `Candy type ${candyIndex}`; } else { const newImg = document.createElement('img'); newImg.src = expectedSrc; newImg.alt = `Candy type ${candyIndex}`; newImg.setAttribute('draggable', false); candyElement.innerHTML = ''; candyElement.appendChild(newImg); } candyElement.classList.remove('matched'); candyElement.style.animation = `dropIn ${REFILL_DROP_DURATION}s ease-out ${Math.random() * REFILL_DROP_STAGGER_RANDOM}s 1 forwards`; candyElement.addEventListener('animationend', (e) => { if(e.animationName === 'dropIn') { candyElement.style.animation = ''; if(!candyElement.classList.contains('matched')) candyElement.style.opacity = '1'; } }, { once: true }); } candyElement.setAttribute('draggable', interactionEnabled); candyElement.style.cursor = interactionEnabled ? 'grab' : 'default'; } else { if (!candyElement.classList.contains('matched')) { candyElement.classList.add('matched'); candyElement.setAttribute('draggable', false); candyElement.style.cursor = 'default'; } } } } }
+        function moveCandiesDown() { for (let c = 0; c < gridWidth; c++) { let fillPos = gridHeight - 1; for (let r = gridHeight - 1; r >= 0; r--) { if (board[r][c] !== null) { if (r !== fillPos) { board[fillPos][c] = board[r][c]; board[r][c] = null; } fillPos--; } } } }
+        function generateNewCandies() { for (let c = 0; c < gridWidth; c++) { for (let r = gridHeight - 1; r >= 0; r--) { if (board[r][c] === null) { board[r][c] = Math.floor(Math.random() * candyImageUrls.length); } } } }
+        function checkForAllMatches() { let foundMatch = false; let matches = new Set(); for (let r = 0; r < gridHeight; r++) { for (let c = 0; c < gridWidth - 2; c++) { let candyIndex = board[r][c]; if (candyIndex !== null && board[r][c + 1] === candyIndex && board[r][c + 2] === candyIndex) { foundMatch = true; matches.add(`${r}-${c}`); matches.add(`${r}-${c + 1}`); matches.add(`${r}-${c + 2}`); for (let k = c + 3; k < gridWidth && board[r][k] === candyIndex; k++) { matches.add(`${r}-${k}`); } } } } for (let c = 0; c < gridWidth; c++) { for (let r = 0; r < gridHeight - 2; r++) { let candyIndex = board[r][c]; if (candyIndex !== null && board[r + 1][c] === candyIndex && board[r + 2][c] === candyIndex) { foundMatch = true; matches.add(`${r}-${c}`); matches.add(`${r + 1}-${c}`); matches.add(`${r + 2}-${c}`); for (let k = r + 3; k < gridHeight && board[k][c] === candyIndex; k++) { matches.add(`${k}-${c}`); } } } } if (foundMatch) { removeMatches(matches); return true; } else { return false; } }
+        function spawnCoinParticle(targetElement) { const particle=document.createElement('div'); particle.classList.add('coin-particle'); gameBoard.appendChild(particle); const rect=targetElement.getBoundingClientRect(); const boardRect=gameBoard.getBoundingClientRect(); particle.style.left=`${rect.left-boardRect.left+(rect.width/2)-7}px`; particle.style.top=`${rect.top-boardRect.top+(rect.height/2)-7}px`; const coinEl=document.getElementById('coins-display'); const scoreRect=coinEl.parentElement.getBoundingClientRect(); const targetX=scoreRect.left-boardRect.left+(scoreRect.width/2)-7; const targetY=scoreRect.top-boardRect.top; particle.offsetHeight; particle.style.transform=`translate(${targetX-parseFloat(particle.style.left)}px, ${targetY-parseFloat(particle.style.top)}px) scale(0.5)`; particle.style.opacity='0'; playSoundGen('collectCoin'); const removeParticle=()=>{if(particle.parentNode)particle.parentNode.removeChild(particle); particle.removeEventListener('transitionend', removeParticle);}; particle.addEventListener('transitionend', removeParticle); setTimeout(removeParticle, 700); }
+        function checkLevelCompletion() { if (gameLocked) return; let objectiveMet = false; if (!currentLevelConfig.objective) return; if (currentLevelConfig.objective.type === 'score') { objectiveMet = score >= currentLevelConfig.objective.target; } else if (currentLevelConfig.objective.type === 'collect') { objectiveMet = currentLevelConfig.objective.targets.every(target => (currentObjectiveState[target.index] || 0) <= 0); } if (objectiveMet) { gameLocked = true; interactionEnabled = false; setInteractionOnCandies(false); playSoundGen('winLevel'); clearHint(); if (currentLevelIndex + 1 >= highestUnlockedLevel) { highestUnlockedLevel = currentLevelIndex + 2; if (highestUnlockedLevel > TOTAL_LEVELS + 1) highestUnlockedLevel = TOTAL_LEVELS + 1; } savePlayerData(); updateTopBarUI(); showModal(`Level ${currentLevelIndex + 1} Complete!`, "Awesome Job! 🎉", currentLevelIndex < levelConfigs.length - 1); } else if (movesLeft <= 0) { gameLocked = true; interactionEnabled = false; setInteractionOnCandies(false); playSoundGen('loseLevel'); clearHint(); const livesBeforeLoss = userLives; userLives = Math.max(0, userLives - 1); savePlayerData(); updateTopBarUI(); if (livesBeforeLoss >= maxLives && userLives < maxLives && countdownIntervalId === null) { initializeTimer(); } showModal("Out of Moves!", "Try again?", false, true); } }
+        function updateScore(points) { score += points; }
+        function setInteractionOnCandies(isEnabled) { const candies = document.querySelectorAll('#game-board .candy'); candies.forEach(c => { const isMatched = c.classList.contains('matched'); c.setAttribute('draggable', isEnabled && !isMatched); c.style.cursor = (isEnabled && !isMatched) ? 'grab' : 'default'; }); }
+        function showModal(title, message, showNext = true, showRestart = true, showMap = true) { modalTitle.textContent = title; modalMessage.textContent = message; modalNextButton.style.display = showNext ? 'inline-block' : 'none'; modalRestartButton.style.display = showRestart ? 'inline-block' : 'none'; modalMapButton.style.display = showMap ? 'inline-block' : 'none'; modal.style.display = 'flex'; }
+        function hideModal() { modal.style.display = 'none'; }
+        modalNextButton.onclick = () => { playSoundGen('buttonClick'); hideModal(); startGame(currentLevelIndex + 1); gameLocked = false; };
+        modalRestartButton.onclick = () => { playSoundGen('buttonClick'); hideModal(); startGame(currentLevelIndex); gameLocked = false; };
+        modalMapButton.onclick = () => { playSoundGen('buttonClick'); hideModal(); renderMap(); scrollToCurrentLevel(); showScreen('map-screen'); gameLocked = false; updateTopBarUI(); };
+        backToMapButton.onclick = () => { playSoundGen('buttonClick'); renderMap(); scrollToCurrentLevel(); showScreen('map-screen'); updateTopBarUI(); };
+        window.onload = () => { initAudioContext(); loadPlayerData(); initializeTimer(); renderMap(); requestAnimationFrame(() => { setTimeout(scrollToCurrentLevel, 150); }); showScreen('map-screen'); const resumeHandler = () => { resumeAudioContext(); document.body.removeEventListener('touchstart', resumeHandler); document.body.removeEventListener('mousedown', resumeHandler); }; document.body.addEventListener('touchstart', resumeHandler, { once: true, passive: true }); document.body.addEventListener('mousedown', resumeHandler, { once: true }); };
+
+    </script>
+</body>
+</html>
