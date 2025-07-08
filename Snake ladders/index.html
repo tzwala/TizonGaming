@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Futuristic Ludo Snake & Ladder</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            overflow-x: hidden;
+            min-height: 100vh;
+            position: relative;
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .container {
+            max-width: 100vw;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            background: linear-gradient(90deg, #00d4ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header h1 {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+            to { text-shadow: 0 0 30px rgba(0, 212, 255, 0.8), 0 0 40px rgba(255, 0, 255, 0.5); }
+        }
+
+        .game-modes {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(45deg, #ff00ff, #00d4ff);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+            min-width: 120px;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(45deg, #00ff00, #00d4ff);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .game-board {
+            display: none;
+            max-width: min(400px, 95vw);
+            margin: 20px auto;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            margin: 20px 0;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 15px;
+        }
+
+        .board-cell {
+            aspect-ratio: 1;
+            background: linear-gradient(135deg, #2a2a3e 0%, #3a3a5e 100%);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.7);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .board-cell:hover {
+            background: linear-gradient(135deg, #3a3a5e 0%, #4a4a7e 100%);
+            border-color: rgba(0, 212, 255, 0.5);
+        }
+
+        .board-cell.snake {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            animation: snake-glow 2s ease-in-out infinite alternate;
+            position: relative;
+        }
+
+        .board-cell.snake::after {
+            content: '🐍';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            z-index: 1;
+        }
+
+        .board-cell.ladder {
+            background: linear-gradient(135deg, #44ff44 0%, #00cc00 100%);
+            animation: ladder-glow 2s ease-in-out infinite alternate;
+            position: relative;
+        }
+
+        .board-cell.ladder::after {
+            content: '🪜';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            z-index: 1;
+        }
+
+        @keyframes snake-glow {
+            from { box-shadow: 0 0 10px rgba(255, 68, 68, 0.5); }
+            to { box-shadow: 0 0 20px rgba(255, 68, 68, 0.8); }
+        }
+
+        @keyframes ladder-glow {
+            from { box-shadow: 0 0 10px rgba(68, 255, 68, 0.5); }
+            to { box-shadow: 0 0 20px rgba(68, 255, 68, 0.8); }
+        }
+
+        .player-piece {
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: bold;
+            transition: all 0.5s ease;
+            z-index: 2;
+        }
+
+        .player-piece.player1 {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.7);
+        }
+
+        .player-piece.player2 {
+            background: linear-gradient(135deg, #ff00ff 0%, #cc00cc 100%);
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.7);
+        }
+
+        .game-controls {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .dice-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dice {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #ffffff 0%, #cccccc 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .dice:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .dice.rolling {
+            animation: dice-roll 1s ease-in-out;
+        }
+
+        @keyframes dice-roll {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(90deg); }
+            50% { transform: rotate(180deg); }
+            75% { transform: rotate(270deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .roll-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 20px;
+            background: linear-gradient(45deg, #00ff00, #00cc00);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 255, 0, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .roll-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 255, 0, 0.5);
+        }
+
+        .roll-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .player-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .player-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .player-position {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .current-player {
+            color: #00ff00;
+            animation: current-player-glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes current-player-glow {
+            from { text-shadow: 0 0 5px rgba(0, 255, 0, 0.5); }
+            to { text-shadow: 0 0 15px rgba(0, 255, 0, 0.8); }
+        }
+
+        .game-over {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .game-over-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            border: 2px solid rgba(0, 212, 255, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 90vw;
+            animation: popup-bounce 0.5s ease-out;
+        }
+
+        @keyframes popup-bounce {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            70% { transform: scale(0.95); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .game-over h2 {
+            font-size: clamp(20px, 5vw, 32px);
+            margin-bottom: 15px;
+            background: linear-gradient(90deg, #00d4ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .winner-emoji {
+            font-size: clamp(40px, 10vw, 60px);
+            margin-bottom: 20px;
+            display: block;
+            animation: winner-dance 2s ease-in-out infinite;
+        }
+
+        @keyframes winner-dance {
+            0%, 100% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(-10deg) scale(1.1); }
+            75% { transform: rotate(10deg) scale(1.1); }
+        }
+
+        .game-over.winner {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .game-over.winner .game-over-content {
+            border-color: rgba(0, 255, 0, 0.8);
+            background: linear-gradient(135deg, #0a2e0a 0%, #0e3e0e 100%);
+        }
+
+        .game-over.winner h2 {
+            background: linear-gradient(90deg, #00ff00, #44ff44);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .game-over.loser {
+            background: rgba(255, 0, 0, 0.1);
+        }
+
+        .game-over.loser .game-over-content {
+            border-color: rgba(255, 0, 0, 0.8);
+            background: linear-gradient(135deg, #2e0a0a 0%, #3e0e0e 100%);
+        }
+
+        .game-over.loser h2 {
+            background: linear-gradient(90deg, #ff0000, #ff4444);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .game-stats {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .game-stats h3 {
+            margin-bottom: 10px;
+            color: #00d4ff;
+            font-size: 16px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .stat-value {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .ad-banner {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .ad-banner iframe {
+            border-radius: 10px;
+            max-width: 100%;
+        }
+
+        .ad-banner-game {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 15px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .ad-banner-game iframe {
+            border-radius: 10px;
+            max-width: 100%;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .restart-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(45deg, #ff00ff, #00d4ff);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+            margin-top: 20px;
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+        }
+
+        .message {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            font-size: 14px;
+        }
+
+        .sound-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff00ff, #00d4ff);
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .sound-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .sound-toggle.muted {
+            background: linear-gradient(45deg, #666, #999);
+        }
+
+        .volume-control {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 10px;
+            border-radius: 15px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .volume-control.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .volume-slider {
+            writing-mode: bt-lr; /* IE */
+            -webkit-appearance: slider-vertical; /* WebKit */
+            width: 8px;
+            height: 100px;
+            background: linear-gradient(to top, #666 0%, #00d4ff 100%);
+            outline: none;
+            border-radius: 4px;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff00ff, #00d4ff);
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff00ff, #00d4ff);
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+
+        .volume-label {
+            font-size: 12px;
+            color: #00d4ff;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .snake-color {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+        }
+
+        .ladder-color {
+            background: linear-gradient(135deg, #44ff44 0%, #00cc00 100%);
+        }
+
+        .back-btn-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .back-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 20px;
+            background: linear-gradient(45deg, #666, #999);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 102, 102, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 102, 102, 0.5);
+        }
+
+        .snake-ladder-text {
+            position: absolute;
+            bottom: 1px;
+            left: 1px;
+            font-size: 6px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+            z-index: 1;
+        }
+
+        @media (max-width: 480px) {
+            .game-board {
+                max-width: 95%;
+                padding: 15px;
+            }
+            
+            .board-cell {
+                font-size: 8px;
+            }
+            
+            .dice {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            
+            .game-controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .sound-toggle {
+                top: 10px;
+                right: 10px;
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+
+            .volume-control {
+                top: 55px;
+                right: 10px;
+                padding: 12px 8px;
+            }
+
+            .volume-slider {
+                height: 80px;
+                width: 6px;
+            }
+
+            .volume-label {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="sound-toggle" id="sound-toggle">🔊</button>
+        <div class="volume-control" id="volume-control">
+            <div class="volume-label">VOL</div>
+            <input type="range" min="0" max="100" value="50" class="volume-slider" id="volume-slider" orient="vertical">
+            <div class="volume-label" id="volume-percent">50%</div>
+        </div>
+        <div class="header">
+            <h1>Futuristic Ludo Snake & Ladder</h1>
+        </div>
+
+        <div class="game-modes" id="game-modes">
+            <button class="mode-btn" id="pvp-mode">1vs1</button>
+            <button class="mode-btn" id="ai-mode">Play Computer</button>
+        </div>
+
+        <!-- ===== START: MAIN MENU AD ===== -->
+        <div class="ad-banner" id="main-menu-ad-container" style="display: flex; justify-content: center; margin: 20px auto; max-width: 300px;">
+            <script type="text/javascript">
+                atOptions = {
+                    'key' : '8a868b1f298a993e5a3d49d4118fa388',
+                    'format' : 'iframe',
+                    'height' : 250,
+                    'width' : 300,
+                    'params' : {}
+                };
+            </script>
+            <script type="text/javascript" src="//www.highperformanceformat.com/8a868b1f298a993e5a3d49d4118fa388/invoke.js"></script>
+        </div>
+        <!-- ===== END: MAIN MENU AD ===== -->
+
+        <div class="back-btn-container" id="back-btn-container" style="display: none;">
+             <!-- ===== START: IN-GAME AD ===== -->
+            <div class="ad-banner-game" style="display: flex; justify-content: center; margin: 0 auto 15px auto; max-width: 320px;">
+                 <script type="text/javascript">
+                    atOptions = {
+                        'key' : 'dfa49210445f15b16e65b226cbbfc41e',
+                        'format' : 'iframe',
+                        'height' : 50,
+                        'width' : 320,
+                        'params' : {}
+                    };
+                </script>
+                <script type="text/javascript" src="//www.highperformanceformat.com/dfa49210445f15b16e65b226cbbfc41e/invoke.js"></script>
+            </div>
+            <!-- ===== END: IN-GAME AD ===== -->
+            <button class="back-btn" id="back-btn">← Back to Menu</button>
+        </div>
+
+        <div class="game-board" id="game-board">
+            <div class="game-info">
+                <div class="player-info">
+                    <div class="player-name" id="player1-name">Player 1</div>
+                    <div class="player-position" id="player1-position">Position: 0</div>
+                </div>
+                <div class="player-info">
+                    <div class="player-name" id="player2-name">Player 2</div>
+                    <div class="player-position" id="player2-position">Position: 0</div>
+                </div>
+            </div>
+
+            <div class="board-grid" id="board-grid"></div>
+
+            <div class="game-controls">
+                <div class="dice-container">
+                    <div class="dice" id="dice">?</div>
+                    <button class="roll-btn" id="roll-btn">Roll Dice</button>
+                </div>
+            </div>
+
+            <div class="message" id="message">Choose a game mode to start!</div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color snake-color"></div>
+                    <span>🐍 Snake (Go Down)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color ladder-color"></div>
+                    <span>🪜 Ladder (Go Up)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-over" id="game-over">
+        <div class="game-over-content">
+            <div class="winner-emoji" id="winner-emoji">🎉</div>
+            <h2 id="winner-text">Game Over</h2>
+            <div class="game-stats" id="game-stats">
+                <h3>Game Statistics</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Winner:</span>
+                    <span class="stat-value" id="winner-name">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Final Position:</span>
+                    <span class="stat-value" id="final-position">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Player 1 Position:</span>
+                    <span class="stat-value" id="p1-final-pos">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Player 2 Position:</span>
+                    <span class="stat-value" id="p2-final-pos">-</span>
+                </div>
+            </div>
+            <button class="restart-btn" id="restart-btn">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        class FuturisticLudoSnakeLadder {
+            constructor() {
+                this.gameMode = null;
+                this.currentPlayer = 1;
+                this.players = {
+                    1: { position: 0, name: 'Player 1', moves: 0, snakesHit: 0, laddersClimbed: 0 },
+                    2: { position: 0, name: 'Player 2', moves: 0, snakesHit: 0, laddersClimbed: 0 }
+                };
+                this.isGameActive = false;
+                this.diceValue = 1;
+                this.isRolling = false;
+                this.soundEnabled = true;
+                this.volume = 0.5; // 50% volume
+                this.gameStartTime = null;
+                this.showingVolumeControl = false;
+                
+                // Audio context for sound effects
+                this.audioContext = null;
+                this.sounds = {};
+                
+                // Snake and Ladder positions
+                this.snakes = {
+                    16: 6, 47: 26, 49: 11, 56: 53, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 98: 78
+                };
+                this.ladders = {
+                    1: 38, 4: 14, 9: 21, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 80: 100
+                };
+                
+                this.initializeGame();
+                this.initializeAudio();
+            }
+
+            initializeGame() {
+                this.createBoard();
+                this.bindEvents();
+                this.updateDisplay();
+            }
+
+            createBoard() {
+                const boardGrid = document.getElementById('board-grid');
+                boardGrid.innerHTML = '';
+                
+                for (let i = 100; i >= 1; i--) {
+                    const cell = document.createElement('div');
+                    cell.className = 'board-cell';
+                    cell.setAttribute('data-position', i);
+                    cell.textContent = i;
+                    
+                    if (this.snakes[i]) {
+                        cell.classList.add('snake');
+                        cell.title = `🐍 Snake! Goes down to ${this.snakes[i]}`;
+                        const snakeText = document.createElement('div');
+                        snakeText.className = 'snake-ladder-text';
+                        snakeText.textContent = `→${this.snakes[i]}`;
+                        cell.appendChild(snakeText);
+                    } else if (this.ladders[i]) {
+                        cell.classList.add('ladder');
+                        cell.title = `🪜 Ladder! Goes up to ${this.ladders[i]}`;
+                        const ladderText = document.createElement('div');
+                        ladderText.className = 'snake-ladder-text';
+                        ladderText.textContent = `→${this.ladders[i]}`;
+                        cell.appendChild(ladderText);
+                    }
+                    
+                    boardGrid.appendChild(cell);
+                }
+                
+                this.updatePlayerPositions();
+            }
+
+            bindEvents() {
+                document.getElementById('pvp-mode').addEventListener('click', () => this.setGameMode('pvp'));
+                document.getElementById('ai-mode').addEventListener('click', () => this.setGameMode('ai'));
+                document.getElementById('roll-btn').addEventListener('click', () => this.rollDice());
+                document.getElementById('restart-btn').addEventListener('click', () => this.restartGame());
+                document.getElementById('sound-toggle').addEventListener('click', () => this.toggleVolumeControl());
+                document.getElementById('back-btn').addEventListener('click', () => this.goBackToMenu());
+                document.getElementById('volume-slider').addEventListener('input', (e) => this.setVolume(e.target.value));
+                
+                document.getElementById('dice').addEventListener('click', () => this.rollDice());
+                
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.sound-toggle') && !e.target.closest('.volume-control')) {
+                        this.hideVolumeControl();
+                    }
+                });
+            }
+
+            initializeAudio() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.createSoundEffects();
+                } catch (error) {
+                    console.log('Audio not supported');
+                }
+            }
+
+            createSoundEffects() {
+                this.sounds = {
+                    diceRoll: { frequency: 800, duration: 0.1, type: 'square' },
+                    move: { frequency: 400, duration: 0.15, type: 'sine' },
+                    snake: { frequency: 200, duration: 0.3, type: 'sawtooth' },
+                    ladder: { frequency: 600, duration: 0.25, type: 'triangle' },
+                    win: { frequency: 880, duration: 0.5, type: 'sine' },
+                    lose: { frequency: 150, duration: 0.8, type: 'square' },
+                    click: { frequency: 1000, duration: 0.05, type: 'sine' },
+                    sixRoll: { frequency: 1200, duration: 0.2, type: 'triangle' }
+                };
+            }
+
+            playSound(soundType) {
+                if (!this.soundEnabled || !this.audioContext || this.volume === 0) return;
+                
+                const sound = this.sounds[soundType];
+                if (!sound) return;
+
+                try {
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    oscillator.frequency.setValueAtTime(sound.frequency, this.audioContext.currentTime);
+                    oscillator.type = sound.type;
+                    
+                    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(this.volume * 0.3, this.audioContext.currentTime + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + sound.duration);
+                    
+                    oscillator.start(this.audioContext.currentTime);
+                    oscillator.stop(this.audioContext.currentTime + sound.duration);
+                } catch (error) {
+                    console.log('Sound playback failed');
+                }
+            }
+
+            toggleVolumeControl() {
+                this.playSound('click');
+                this.showingVolumeControl = !this.showingVolumeControl;
+                const volumeControl = document.getElementById('volume-control');
+                
+                if (this.showingVolumeControl) {
+                    volumeControl.classList.add('show');
+                } else {
+                    volumeControl.classList.remove('show');
+                }
+                
+                this.updateSoundIcon();
+            }
+
+            hideVolumeControl() {
+                this.showingVolumeControl = false;
+                document.getElementById('volume-control').classList.remove('show');
+            }
+
+            setVolume(value) {
+                this.volume = value / 100;
+                this.soundEnabled = this.volume > 0;
+                document.getElementById('volume-percent').textContent = `${value}%`;
+                this.updateSoundIcon();
+                this.playSound('click');
+            }
+
+            updateSoundIcon() {
+                const soundBtn = document.getElementById('sound-toggle');
+                if (this.volume === 0) {
+                    soundBtn.textContent = '🔇';
+                    soundBtn.classList.add('muted');
+                } else if (this.volume < 0.5) {
+                    soundBtn.textContent = '🔉';
+                    soundBtn.classList.remove('muted');
+                } else {
+                    soundBtn.textContent = '🔊';
+                    soundBtn.classList.remove('muted');
+                }
+            }
+
+            setGameMode(mode) {
+                this.playSound('click');
+                this.gameMode = mode;
+                this.isGameActive = true;
+                this.gameStartTime = Date.now();
+                
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                
+                this.players[1] = { position: 0, name: 'Player 1', moves: 0, snakesHit: 0, laddersClimbed: 0 };
+                this.players[2] = { position: 0, name: 'Player 2', moves: 0, snakesHit: 0, laddersClimbed: 0 };
+                
+                // === AD CONTROL ===
+                document.getElementById('game-modes').style.display = 'none';
+                document.getElementById('main-menu-ad-container').style.display = 'none';
+                document.getElementById('back-btn-container').style.display = 'block';
+                document.getElementById('game-board').style.display = 'block';
+                
+                if (mode === 'ai') {
+                    this.players[2].name = 'Computer';
+                    document.getElementById('player2-name').textContent = 'Computer';
+                } else {
+                    this.players[2].name = 'Player 2';
+                    document.getElementById('player2-name').textContent = 'Player 2';
+                }
+                
+                this.updateMessage(`${this.players[this.currentPlayer].name}'s turn! Roll the dice!`);
+                this.updateDisplay();
+            }
+
+            goBackToMenu() {
+                this.playSound('click');
+                
+                this.gameMode = null;
+                this.isGameActive = false;
+                this.currentPlayer = 1;
+                this.players[1] = { position: 0, name: 'Player 1', moves: 0, snakesHit: 0, laddersClimbed: 0 };
+                this.players[2] = { position: 0, name: 'Player 2', moves: 0, snakesHit: 0, laddersClimbed: 0 };
+                this.diceValue = 1;
+                
+                // === AD CONTROL ===
+                document.getElementById('game-modes').style.display = 'flex';
+                document.getElementById('main-menu-ad-container').style.display = 'flex';
+                document.getElementById('back-btn-container').style.display = 'none';
+                document.getElementById('game-board').style.display = 'none';
+                
+                const gameOverModal = document.getElementById('game-over');
+                gameOverModal.style.display = 'none';
+                gameOverModal.className = 'game-over';
+                
+                document.getElementById('dice').textContent = '?';
+                this.updateMessage('Choose a game mode to start!');
+                
+                this.createBoard();
+                this.updateDisplay();
+            }
+
+            rollDice() {
+                if (!this.isGameActive || this.isRolling) return;
+                
+                this.vibrate(100);
+                this.playSound('diceRoll');
+                
+                this.isRolling = true;
+                const diceElement = document.getElementById('dice');
+                const rollBtn = document.getElementById('roll-btn');
+                
+                diceElement.classList.add('rolling');
+                rollBtn.disabled = true;
+                
+                let rollCount = 0;
+                const rollInterval = setInterval(() => {
+                    this.diceValue = Math.floor(Math.random() * 6) + 1;
+                    diceElement.textContent = this.diceValue;
+                    rollCount++;
+                    
+                    if (rollCount >= 10) {
+                        clearInterval(rollInterval);
+                        diceElement.classList.remove('rolling');
+                        this.isRolling = false;
+                        rollBtn.disabled = false;
+                        
+                        if (this.diceValue === 6) {
+                            setTimeout(() => this.playSound('sixRoll'), 200);
+                        }
+                        
+                        this.movePlayer();
+                    }
+                }, 100);
+            }
+
+            vibrate(duration) {
+                if ('vibrate' in navigator && this.soundEnabled && this.volume > 0) {
+                    navigator.vibrate(duration);
+                }
+            }
+
+            movePlayer() {
+                const currentPos = this.players[this.currentPlayer].position;
+                let newPos = currentPos + this.diceValue;
+                
+                this.players[this.currentPlayer].moves++;
+                
+                if (newPos > 100) {
+                    this.updateMessage(`${this.players[this.currentPlayer].name} needs exactly ${100 - currentPos} to win!`);
+                    this.switchPlayer();
+                    return;
+                }
+                
+                this.playSound('move');
+                
+                this.players[this.currentPlayer].position = newPos;
+                this.updatePlayerPositions();
+                
+                if (this.snakes[newPos]) {
+                    const snakeEnd = this.snakes[newPos];
+                    this.players[this.currentPlayer].position = snakeEnd;
+                    this.players[this.currentPlayer].snakesHit++;
+                    this.updateMessage(`${this.players[this.currentPlayer].name} got bitten by a snake! Moved to ${snakeEnd}`);
+                    this.vibrate(200);
+                    setTimeout(() => {
+                        this.playSound('snake');
+                        this.updatePlayerPositions();
+                    }, 500);
+                } else if (this.ladders[newPos]) {
+                    const ladderEnd = this.ladders[newPos];
+                    this.players[this.currentPlayer].position = ladderEnd;
+                    this.players[this.currentPlayer].laddersClimbed++;
+                    this.updateMessage(`${this.players[this.currentPlayer].name} climbed a ladder! Moved to ${ladderEnd}`);
+                    this.vibrate([100, 50, 100]);
+                    setTimeout(() => {
+                        this.playSound('ladder');
+                        this.updatePlayerPositions();
+                    }, 500);
+                } else {
+                    this.updateMessage(`${this.players[this.currentPlayer].name} moved to position ${newPos}`);
+                }
+                
+                if (this.players[this.currentPlayer].position >= 100) {
+                    setTimeout(() => this.endGame(this.currentPlayer), 800);
+                    return;
+                }
+                
+                if (this.diceValue !== 6) {
+                    setTimeout(() => this.switchPlayer(), 1000);
+                } else {
+                    this.updateMessage(`${this.players[this.currentPlayer].name} rolled a 6! Roll again!`);
+                }
+            }
+
+            switchPlayer() {
+                this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+                this.updateDisplay();
+                
+                if (this.gameMode === 'ai' && this.currentPlayer === 2) {
+                    this.updateMessage("Computer is thinking...");
+                    setTimeout(() => {
+                        this.rollDice();
+                    }, 1500);
+                } else {
+                    this.updateMessage(`${this.players[this.currentPlayer].name}'s turn! Roll the dice!`);
+                }
+            }
+
+            updatePlayerPositions() {
+                document.querySelectorAll('.player-piece').forEach(piece => piece.remove());
+                
+                Object.keys(this.players).forEach(playerId => {
+                    const player = this.players[playerId];
+                    if (player.position > 0) {
+                        const cell = document.querySelector(`[data-position="${player.position}"]`);
+                        if (cell) {
+                            const piece = document.createElement('div');
+                            piece.className = `player-piece player${playerId}`;
+                            piece.textContent = `P${playerId}`;
+                            cell.appendChild(piece);
+                        }
+                    }
+                });
+            }
+
+            updateDisplay() {
+                document.getElementById('player1-position').textContent = `Position: ${this.players[1].position}`;
+                document.getElementById('player2-position').textContent = `Position: ${this.players[2].position}`;
+                
+                document.querySelectorAll('.player-name').forEach(name => name.classList.remove('current-player'));
+                document.getElementById(`player${this.currentPlayer}-name`).classList.add('current-player');
+            }
+
+            updateMessage(message) {
+                document.getElementById('message').textContent = message;
+            }
+
+            endGame(winner) {
+                this.isGameActive = false;
+                const gameOverModal = document.getElementById('game-over');
+                const isPlayerWin = (winner === 1 && this.gameMode === 'ai') || this.gameMode === 'pvp';
+                
+                if (isPlayerWin) {
+                    this.playSound('win');
+                    gameOverModal.className = 'game-over winner';
+                    this.vibrate([200, 100, 200, 100, 200]);
+                } else {
+                    this.playSound('lose');
+                    gameOverModal.className = 'game-over loser';
+                    this.vibrate([100, 100, 100]);
+                }
+                
+                const winnerText = document.getElementById('winner-text');
+                const winnerEmoji = document.getElementById('winner-emoji');
+                
+                if (this.gameMode === 'pvp') {
+                    winnerText.textContent = `${this.players[winner].name} Wins!`;
+                    winnerEmoji.textContent = '🎉';
+                } else if (this.gameMode === 'ai') {
+                    if (winner === 1) {
+                        winnerText.textContent = 'You Win!';
+                        winnerEmoji.textContent = '🎉';
+                    } else {
+                        winnerText.textContent = 'Computer Wins!';
+                        winnerEmoji.textContent = '🤖';
+                    }
+                }
+                
+                this.updateGameStats(winner);
+                gameOverModal.style.display = 'flex';
+            }
+
+            updateGameStats(winner) {
+                const gameEndTime = Date.now();
+                const gameDuration = Math.round((gameEndTime - this.gameStartTime) / 1000);
+                
+                document.getElementById('winner-name').textContent = this.players[winner].name;
+                document.getElementById('final-position').textContent = this.players[winner].position;
+                
+                const statsContainer = document.getElementById('game-stats');
+                statsContainer.innerHTML = `
+                    <h3>Game Statistics</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Winner:</span>
+                        <span class="stat-value">${this.players[winner].name}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Game Duration:</span>
+                        <span class="stat-value">${gameDuration}s</span>
+                    </div>
+                    <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                    <div class="stat-item">
+                        <span class="stat-label">${this.players[1].name} Moves:</span>
+                        <span class="stat-value">${this.players[1].moves}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">${this.players[2].name} Moves:</span>
+                        <span class="stat-value">${this.players[2].moves}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Snakes Hit:</span>
+                        <span class="stat-value">${this.players[1].snakesHit + this.players[2].snakesHit}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Ladders Climbed:</span>
+                        <span class="stat-value">${this.players[1].laddersClimbed + this.players[2].laddersClimbed}</span>
+                    </div>
+                `;
+            }
+
+            restartGame() {
+                this.playSound('click');
+                this.goBackToMenu();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new FuturisticLudoSnakeLadder();
+        });
+    </script>
+</body>
+</html>
