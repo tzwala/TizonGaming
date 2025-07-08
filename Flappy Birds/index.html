@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cyber Flappy Bird - Glassmorphism Edition</title>
+<link rel="icon" type="image/x-icon" href="https://flappybird.io/img/apple-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #00f6ff; /* Neon Cyan */
+            --secondary-color: #ff00e5; /* Neon Magenta */
+            --pipe-color: '#39ff14'; /* Neon Green */
+            --background-color: #0d0221; /* Deep Space Blue */
+            --text-color: #f0f0f0;
+            --glow-shadow: 0 0 5px var(--primary-color), 0 0 10px var(--primary-color), 0 0 15px var(--primary-color);
+            --glow-shadow-secondary: 0 0 5px var(--secondary-color), 0 0 10px var(--secondary-color), 0 0 15px var(--secondary-color);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--background-color);
+            font-family: 'Orbitron', sans-serif;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 90vw;
+            max-width: 400px;
+            aspect-ratio: 9 / 16;
+            border: 3px solid var(--primary-color);
+            box-shadow: var(--glow-shadow), inset 0 0 15px rgba(0, 246, 255, 0.3);
+            background-color: #000;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-size: 40px 40px;
+            background-image:
+                linear-gradient(to right, rgba(0, 246, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 246, 255, 0.15) 1px, transparent 1px);
+        }
+        
+        .ui-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+
+            z-index: 10;
+            pointer-events: none; /* Allows clicks to pass through to the container */
+        }
+        
+        .ui-panel.interactive {
+             pointer-events: auto; /* Buttons inside are clickable */
+        }
+
+        .ui-panel h1 {
+            font-size: 2.8rem;
+            color: var(--primary-color);
+            text-shadow: var(--glow-shadow);
+            margin-bottom: 20px;
+            line-height: 1.1;
+        }
+        
+        .ui-panel h2 {
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+            text-shadow: var(--glow-shadow-secondary);
+            margin-bottom: 10px;
+        }
+
+        .ui-panel p {
+            font-size: 1rem;
+            margin-bottom: 30px;
+            padding: 0 10px;
+            color: var(--text-color);
+        }
+
+        .ui-button {
+            padding: 15px 30px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            background-color: transparent;
+            border: 2px solid var(--primary-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: var(--glow-shadow);
+            box-shadow: var(--glow-shadow);
+            border-radius: 10px;
+            pointer-events: all; /* Ensure buttons are always clickable */
+        }
+
+        .ui-button:hover {
+            background-color: var(--primary-color);
+            color: var(--background-color);
+            box-shadow: var(--glow-shadow), 0 0 30px var(--primary-color);
+            text-shadow: none;
+        }
+        
+        #start-screen p {
+            opacity: 0.9;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--text-color);
+            text-shadow: 0 0 5px #000, 0 0 10px var(--secondary-color);
+            z-index: 5;
+            display: none;
+            
+            padding: 5px 25px;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+
+        <div id="score-display">0</div>
+
+        <div id="start-screen" class="ui-panel interactive">
+            <h1>CYBER<br>FLAPPY</h1>
+            <p>Click, Tap, or press Space to initiate cyber-flight.</p>
+            <button id="start-button" class="ui-button">START</button>
+        </div>
+
+        <div id="game-over-screen" class="ui-panel interactive" style="display: none;">
+            <h1>SYSTEM<br>FAILURE</h1>
+            <h2>SCORE: <span id="final-score">0</span></h2>
+            <p>HIGH SCORE: <span id="high-score">0</span></p>
+            <button id="restart-button" class="ui-button">REBOOT</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const finalScoreEl = document.getElementById('final-score');
+        const highScoreEl = document.getElementById('high-score');
+
+        // --- Game State ---
+        let isGameStarted = false;
+        let isGameOver = false;
+        let score = 0;
+        let highScore = localStorage.getItem('cyberFlappyHighScoreGlass') || 0;
+        let frameCount = 0;
+        let animationFrameId;
+
+        // --- Game Constants ---
+        canvas.width = gameContainer.clientWidth;
+        canvas.height = gameContainer.clientHeight;
+        
+        const BIRD_WIDTH = canvas.width / 12;
+        const BIRD_HEIGHT = canvas.height / 20;
+        const GRAVITY = 0.25;
+        const FLAP_STRENGTH = 5.5;
+
+        const PIPE_WIDTH = canvas.width / 7;
+        const PIPE_GAP = canvas.height / 5.5;
+        const PIPE_SPEED = 2.5;
+        const PIPE_SPAWN_INTERVAL = 100;
+
+        // --- Game Objects ---
+        let bird = { x: canvas.width / 4, y: canvas.height / 2, width: BIRD_WIDTH, height: BIRD_HEIGHT, velocityY: 0 };
+        let pipes = [];
+
+        // --- Drawing Functions ---
+        function drawBird() {
+            ctx.save();
+            ctx.shadowColor = '#00f6ff';
+            ctx.shadowBlur = 15;
+            const gradient = ctx.createLinearGradient(bird.x, bird.y, bird.x + bird.width, bird.y + bird.height);
+            gradient.addColorStop(0, '#ff00e5');
+            gradient.addColorStop(1, '#00f6ff');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+            ctx.restore();
+        }
+
+        function drawPipes() {
+            ctx.save();
+            ctx.shadowColor = '#39ff14';
+            ctx.shadowBlur = 15;
+            pipes.forEach(pipe => {
+                const gradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + pipe.width, 0);
+                gradient.addColorStop(0, '#39ff14');
+                gradient.addColorStop(0.5, '#f0f0f0');
+                gradient.addColorStop(1, '#39ff14');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
+                ctx.fillRect(pipe.x, canvas.height - pipe.bottomHeight, pipe.width, pipe.bottomHeight);
+            });
+            ctx.restore();
+        }
+        
+        // --- Game Logic ---
+        function flap() {
+            bird.velocityY = -FLAP_STRENGTH;
+        }
+        
+        function startGame() {
+            if (isGameStarted) return;
+            startScreen.style.display = 'none';
+            resetGame();
+        }
+
+        function resetGame() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            bird.y = canvas.height / 2;
+            bird.velocityY = 0;
+            pipes = [];
+            score = 0;
+            frameCount = 0;
+            isGameOver = false;
+            isGameStarted = true;
+            
+            scoreDisplay.textContent = score;
+            gameOverScreen.style.display = 'none';
+            scoreDisplay.style.display = 'block';
+
+            gameLoop();
+        }
+        
+        function handleGameOver() {
+            isGameOver = true;
+            isGameStarted = false;
+            cancelAnimationFrame(animationFrameId);
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('cyberFlappyHighScoreGlass', highScore);
+            }
+            
+            finalScoreEl.textContent = score;
+            highScoreEl.textContent = highScore;
+            gameOverScreen.style.display = 'flex';
+            scoreDisplay.style.display = 'none';
+        }
+
+        function checkCollisions() {
+            if (bird.y + bird.height > canvas.height || bird.y < 0) {
+                handleGameOver();
+            }
+            for (const pipe of pipes) {
+                if (
+                    bird.x < pipe.x + pipe.width &&
+                    bird.x + bird.width > pipe.x &&
+                    (bird.y < pipe.topHeight || bird.y + bird.height > canvas.height - pipe.bottomHeight)
+                ) {
+                    handleGameOver();
+                    return;
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (isGameOver) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Pipes
+            frameCount++;
+            if (frameCount % PIPE_SPAWN_INTERVAL === 0) {
+                const topHeight = Math.random() * (canvas.height - PIPE_GAP - 100) + 50;
+                pipes.push({ x: canvas.width, topHeight, bottomHeight: canvas.height - topHeight - PIPE_GAP, width: PIPE_WIDTH, scored: false });
+            }
+            pipes.forEach(pipe => {
+                pipe.x -= PIPE_SPEED;
+                if (!pipe.scored && pipe.x + pipe.width < bird.x) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                    pipe.scored = true;
+                }
+            });
+            pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+            drawPipes();
+
+            // Bird
+            bird.velocityY += GRAVITY;
+            bird.y += bird.velocityY;
+            drawBird();
+
+            checkCollisions();
+            
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+        
+        // --- Input Handling ---
+        function handleInput() {
+            if (isGameStarted) {
+                flap();
+            } else if (isGameOver) {
+                resetGame();
+            } else {
+                startGame();
+            }
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent container click from firing too
+            startGame();
+        });
+
+        restartButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetGame();
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                handleInput();
+            }
+        });
+
+        gameContainer.addEventListener('mousedown', handleInput);
+        gameContainer.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleInput();
+        });
+        
+        // Initial setup
+        highScoreEl.textContent = highScore;
+    </script>
+</body>
+</html>
