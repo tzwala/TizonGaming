@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Cyber Flappy Bird - Glassmorphism Edition</title>
-<link rel="icon" type="image/x-icon" href="https://flappybird.io/img/apple-icon.png">
+    <title>Cyber Flappy Bird</title>
+    <link rel="icon" type="image/x-icon" href="https://flappybird.io/img/apple-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
@@ -26,14 +26,31 @@
         }
 
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             background-color: var(--background-color);
             font-family: 'Orbitron', sans-serif;
             color: var(--text-color);
             overflow: hidden;
+        }
+
+        /* NEW: Main wrapper to hold both ad and game */
+        #main-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100%;
+            padding: 10px 0;
+        }
+        
+        /* NEW: Container for the header ad */
+        #ad-header-container {
+            width: 320px;
+            height: 50px;
+            margin-bottom: 15px; /* Space between ad and game */
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         #game-container {
@@ -79,11 +96,11 @@
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 
             z-index: 10;
-            pointer-events: none; /* Allows clicks to pass through to the container */
+            pointer-events: none;
         }
         
         .ui-panel.interactive {
-             pointer-events: auto; /* Buttons inside are clickable */
+             pointer-events: auto;
         }
 
         .ui-panel h1 {
@@ -121,7 +138,7 @@
             text-shadow: var(--glow-shadow);
             box-shadow: var(--glow-shadow);
             border-radius: 10px;
-            pointer-events: all; /* Ensure buttons are always clickable */
+            pointer-events: all;
         }
 
         .ui-button:hover {
@@ -131,10 +148,6 @@
             text-shadow: none;
         }
         
-        #start-screen p {
-            opacity: 0.9;
-        }
-
         #score-display {
             position: absolute;
             top: 20px;
@@ -158,24 +171,42 @@
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="game-canvas"></canvas>
-
-        <div id="score-display">0</div>
-
-        <div id="start-screen" class="ui-panel interactive">
-            <h1>CYBER<br>FLAPPY</h1>
-            <p>Click, Tap, or press Space to initiate cyber-flight.</p>
-            <button id="start-button" class="ui-button">START</button>
+    <div id="main-wrapper">
+        <!-- =========== HEADER AD CONTAINER =========== -->
+        <div id="ad-header-container">
+            <script type="text/javascript">
+                atOptions = {
+                    'key' : 'dfa49210445f15b16e65b226cbbfc41e',
+                    'format' : 'iframe',
+                    'height' : 50,
+                    'width' : 320,
+                    'params' : {}
+                };
+            </script>
+            <script type="text/javascript" src="//www.highperformanceformat.com/dfa49210445f15b16e65b226cbbfc41e/invoke.js"></script>
         </div>
+        <!-- =========================================== -->
 
-        <div id="game-over-screen" class="ui-panel interactive" style="display: none;">
-            <h1>SYSTEM<br>FAILURE</h1>
-            <h2>SCORE: <span id="final-score">0</span></h2>
-            <p>HIGH SCORE: <span id="high-score">0</span></p>
-            <button id="restart-button" class="ui-button">REBOOT</button>
+        <div id="game-container">
+            <canvas id="game-canvas"></canvas>
+
+            <div id="score-display">0</div>
+
+            <div id="start-screen" class="ui-panel interactive">
+                <h1>CYBER<br>FLAPPY</h1>
+                <p>Click, Tap, or press Space to initiate cyber-flight.</p>
+                <button id="start-button" class="ui-button">START</button>
+            </div>
+
+            <div id="game-over-screen" class="ui-panel interactive" style="display: none;">
+                <h1>SYSTEM<br>FAILURE</h1>
+                <h2>SCORE: <span id="final-score">0</span></h2>
+                <p>HIGH SCORE: <span id="high-score">0</span></p>
+                <button id="restart-button" class="ui-button">REBOOT</button>
+            </div>
         </div>
     </div>
+
 
     <script>
         // --- DOM Elements ---
@@ -351,7 +382,7 @@
 
         // --- Event Listeners ---
         startButton.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent container click from firing too
+            e.stopPropagation();
             startGame();
         });
 
